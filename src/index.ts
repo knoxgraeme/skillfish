@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto';
 import degit from 'degit';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
+import { trackInstall } from './telemetry.js';
 
 const VERSION = '1.0.0';
 
@@ -232,9 +233,6 @@ ${pc.dim('Examples:')}
   skillfish f/awesome-chatgpt-prompts
   skillfish owner/repo --path skills/my-skill
   skillfish owner/repo --force --project
-
-${pc.dim('Environment:')}
-  GITHUB_TOKEN    For private repositories
 `);
     process.exit(repoArg ? 0 : 1);
   }
@@ -339,6 +337,14 @@ ${pc.dim('Environment:')}
     const result = await installSkill(owner, repo, skillPath, skillName, targetAgents, force, baseDir);
     totalInstalled += result.installed;
     totalSkipped += result.skipped;
+
+    // Track successful installs (fire-and-forget telemetry)
+    if (result.installed > 0) {
+      // Construct github value to match skills.github column format: owner/repo/path/to/skill
+      const skillDir = skillPath.replace(/\/?SKILL\.md$/i, '').replace(/^\.?\/?/, '');
+      const github = skillDir ? `${owner}/${repo}/${skillDir}` : `${owner}/${repo}`;
+      trackInstall(github);
+    }
   }
 
   // Summary
@@ -677,9 +683,7 @@ async function fetchSkillMdContent(
 }
 
 async function findAllSkillMdFiles(owner: string, repo: string): Promise<string[]> {
-  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
   const headers: Record<string, string> = { 'User-Agent': 'skillfish' };
-  if (token) headers.Authorization = `token ${token}`;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -695,7 +699,7 @@ async function findAllSkillMdFiles(owner: string, repo: string): Promise<string[
       if (res.status === 403) {
         const remaining = res.headers.get('X-RateLimit-Remaining');
         if (remaining === '0') {
-          console.error('GitHub API rate limit exceeded. Set GITHUB_TOKEN for higher limits.');
+          console.error('GitHub API rate limit exceeded. Please try again later.');
           return [];
         }
       }
@@ -707,7 +711,7 @@ async function findAllSkillMdFiles(owner: string, repo: string): Promise<string[
       );
       if (!res2.ok) {
         if (res2.status === 404) {
-          console.error('Repository not found. Check the owner/repo name or set GITHUB_TOKEN for private repos.');
+          console.error('Repository not found. Check the owner/repo name.');
         }
         return [];
       }
