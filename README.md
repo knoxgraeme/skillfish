@@ -124,10 +124,29 @@ DO_NOT_TRACK=1 npx skillfish owner/repo
 
 Telemetry is also automatically disabled in CI environments (`CI=true`).
 
+## Exit Codes
+
+Exit codes help agents and scripts understand command results without parsing error messages.
+
+| Code | Name | Meaning |
+|------|------|---------|
+| 0 | Success | Command completed successfully |
+| 1 | General Error | Unspecified error |
+| 2 | Invalid Args | Invalid arguments or options provided |
+| 3 | Network Error | Network failure (timeout, rate limit) |
+| 4 | Not Found | Requested resource not found (skill, agent, repo) |
+
+JSON output includes `exit_code` for programmatic access:
+
+```bash
+skillfish add owner/repo --json
+# Output includes: "exit_code": 0 (or error code)
+```
+
 ## Contributing
 
 Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-MIT
+AGPL-3.0
