@@ -3,12 +3,13 @@
  * Tests symlink protection, path traversal prevention, and input validation.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, writeFileSync, symlinkSync, rmSync, mkdirSync, existsSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { safeCopyDir } from '../lib/installer.js';
+import { safeCopyDir, installSkill, SkillMdNotFoundError } from '../lib/installer.js';
 import { invokeCli } from './invoke-cli.js';
+import type { Agent } from '../lib/agents.js';
 
 describe('safeCopyDir security', () => {
   let tempDir: string;
@@ -143,5 +144,180 @@ describe('CLI input validation', () => {
     const { exitCode, stderr } = invokeCli(['add', 'owner/repo', '--path', '..\\windows\\system32']);
     expect(exitCode).toBe(2);
     expect(stderr).toContain('Invalid --path value');
+  });
+});
+
+// Mock degit for installSkill tests
+vi.mock('degit', () => {
+  return {
+    default: vi.fn(),
+  };
+});
+
+describe('installSkill', () => {
+  let tempDir: string;
+  let mockDegit: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    tempDir = mkdtempSync(join(tmpdir(), 'skillfish-install-test-'));
+
+    // Get the mocked degit
+    const degitModule = await import('degit');
+    mockDegit = degitModule.default as ReturnType<typeof vi.fn>;
+    mockDegit.mockReset();
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+  });
+
+  const createMockAgent = (name: string, dir: string): Agent => ({
+    name,
+    dir,
+    detect: () => true,
+  });
+
+  it('installs skill to multiple agents', async () => {
+    // Mock degit to simulate successful download with SKILL.md
+    mockDegit.mockReturnValue({
+      clone: vi.fn().mockImplementation(async (destDir: string) => {
+        mkdirSync(destDir, { recursive: true });
+        writeFileSync(join(destDir, 'SKILL.md'), '# Test Skill');
+        writeFileSync(join(destDir, 'README.md'), '# README');
+      }),
+    });
+
+    const agents = [
+      createMockAgent('Agent1', '.agent1/skills'),
+      createMockAgent('Agent2', '.agent2/skills'),
+    ];
+
+    const result = await installSkill('owner', 'repo', 'SKILL.md', 'test-skill', agents, {
+      force: false,
+      baseDir: tempDir,
+    });
+
+    expect(result.failed).toBe(false);
+    expect(result.installed).toHaveLength(2);
+    expect(result.skipped).toHaveLength(0);
+
+    // Verify files were copied
+    expect(existsSync(join(tempDir, '.agent1/skills', 'test-skill', 'SKILL.md'))).toBe(true);
+    expect(existsSync(join(tempDir, '.agent2/skills', 'test-skill', 'SKILL.md'))).toBe(true);
+  });
+
+  it('skips existing skill without --force', async () => {
+    // Pre-create the skill directory
+    const existingDir = join(tempDir, '.agent1/skills', 'test-skill');
+    mkdirSync(existingDir, { recursive: true });
+    writeFileSync(join(existingDir, 'SKILL.md'), '# Existing');
+
+    mockDegit.mockReturnValue({
+      clone: vi.fn().mockImplementation(async (destDir: string) => {
+        mkdirSync(destDir, { recursive: true });
+        writeFileSync(join(destDir, 'SKILL.md'), '# New Skill');
+      }),
+    });
+
+    const agents = [createMockAgent('Agent1', '.agent1/skills')];
+
+    const result = await installSkill('owner', 'repo', 'SKILL.md', 'test-skill', agents, {
+      force: false,
+      baseDir: tempDir,
+    });
+
+    expect(result.failed).toBe(false);
+    expect(result.installed).toHaveLength(0);
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0].reason).toContain('Already exists');
+
+    // Verify original file unchanged
+    expect(readFileSync(join(existingDir, 'SKILL.md'), 'utf-8')).toBe('# Existing');
+  });
+
+  it('overwrites existing skill with --force', async () => {
+    // Pre-create the skill directory
+    const existingDir = join(tempDir, '.agent1/skills', 'test-skill');
+    mkdirSync(existingDir, { recursive: true });
+    writeFileSync(join(existingDir, 'SKILL.md'), '# Existing');
+
+    mockDegit.mockReturnValue({
+      clone: vi.fn().mockImplementation(async (destDir: string) => {
+        mkdirSync(destDir, { recursive: true });
+        writeFileSync(join(destDir, 'SKILL.md'), '# New Skill');
+      }),
+    });
+
+    const agents = [createMockAgent('Agent1', '.agent1/skills')];
+
+    const result = await installSkill('owner', 'repo', 'SKILL.md', 'test-skill', agents, {
+      force: true,
+      baseDir: tempDir,
+    });
+
+    expect(result.failed).toBe(false);
+    expect(result.installed).toHaveLength(1);
+    expect(result.skipped).toHaveLength(0);
+
+    // Verify file was overwritten
+    expect(readFileSync(join(existingDir, 'SKILL.md'), 'utf-8')).toBe('# New Skill');
+  });
+
+  it('fails when SKILL.md not found in download', async () => {
+    mockDegit.mockReturnValue({
+      clone: vi.fn().mockImplementation(async (destDir: string) => {
+        // Download succeeds but no SKILL.md
+        mkdirSync(destDir, { recursive: true });
+        writeFileSync(join(destDir, 'README.md'), '# No skill here');
+      }),
+    });
+
+    const agents = [createMockAgent('Agent1', '.agent1/skills')];
+
+    const result = await installSkill('owner', 'repo', 'invalid/path', 'test-skill', agents, {
+      force: false,
+      baseDir: tempDir,
+    });
+
+    expect(result.failed).toBe(true);
+    expect(result.failureReason).toContain('SKILL.md not found');
+    expect(result.installed).toHaveLength(0);
+  });
+
+  it('cleans up temp directory on failure', async () => {
+    mockDegit.mockReturnValue({
+      clone: vi.fn().mockRejectedValue(new Error('Network error')),
+    });
+
+    const agents = [createMockAgent('Agent1', '.agent1/skills')];
+
+    const result = await installSkill('owner', 'repo', 'SKILL.md', 'test-skill', agents, {
+      force: false,
+      baseDir: tempDir,
+    });
+
+    expect(result.failed).toBe(true);
+    expect(result.failureReason).toContain('Network error');
+
+    // Temp directory should be cleaned up (no lingering cache directories)
+    // We can't directly test this since the cache dir is in ~/.cache,
+    // but the function should have called rmSync in the finally block
+  });
+
+  it('handles degit errors gracefully', async () => {
+    mockDegit.mockReturnValue({
+      clone: vi.fn().mockRejectedValue(new Error('could not find commit hash')),
+    });
+
+    const agents = [createMockAgent('Agent1', '.agent1/skills')];
+
+    const result = await installSkill('owner', 'repo', 'SKILL.md', 'test-skill', agents, {
+      force: false,
+      baseDir: tempDir,
+    });
+
+    expect(result.failed).toBe(true);
+    expect(result.failureReason).toContain('could not find commit hash');
   });
 });

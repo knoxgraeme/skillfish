@@ -18,7 +18,7 @@ import {
   createJsonOutput,
   isInputTTY,
   isTTY,
-  type JsonOutput,
+  type AddJsonOutput,
 } from '../utils.js';
 import { getDetectedAgents, type Agent, AGENT_CONFIGS } from '../lib/agents.js';
 import {
@@ -31,16 +31,18 @@ import {
   GitHubApiError,
 } from '../lib/github.js';
 import { installSkill } from '../lib/installer.js';
-
-// === Exit Codes ===
-const EXIT_SUCCESS = 0;
-const EXIT_GENERAL_ERROR = 1;
-const EXIT_INVALID_ARGS = 2;
-const EXIT_NETWORK_ERROR = 3;
-const EXIT_NOT_FOUND = 4;
-const EXIT_CANCELLED = 0; // User cancellation is not an error
+import { EXIT_CODES, isValidName, type ExitCode } from '../lib/constants.js';
 
 // === Types ===
+
+interface AddCommandOptions {
+  force?: boolean;
+  yes?: boolean;
+  all?: boolean;
+  project?: boolean;
+  global?: boolean;
+  path?: string;
+}
 
 type SkillMetadata = {
   path: string; // Full path to SKILL.md
@@ -53,14 +55,22 @@ type SkillMetadata = {
 
 export const addCommand = new Command('add')
   .description('Install a skill from a GitHub repository')
-  .argument('<repo>', 'Repository (owner/repo or owner/repo/plugin/skill)')
-  .option('--force', 'Overwrite existing skills')
-  .option('-y, --yes', 'Skip confirmation prompts')
-  .option('--all', 'Install all skills in repository')
-  .option('--project', 'Install to current project')
-  .option('--global', 'Install to home directory')
-  .option('--path <path>', 'Explicit path to skill in repository')
-  .action(async (repoArg: string, options, command) => {
+  .argument('<repo>', 'GitHub repository (owner/repo or owner/repo/plugin/skill)')
+  .option('--force', 'Overwrite existing skills without prompting')
+  .option('-y, --yes', 'Skip all confirmation prompts')
+  .option('--all', 'Install all skills found in the repository')
+  .option('--project', 'Install to current project (./.claude)')
+  .option('--global', 'Install to home directory (~/.claude)')
+  .option('--path <path>', 'Path to a specific skill in the repository')
+  .helpOption('-h, --help', 'Display help for command')
+  .addHelpText('after', `
+Examples:
+  $ skillfish add owner/repo                  Install from a repository
+  $ skillfish add owner/repo --all            Install all skills in repo
+  $ skillfish add owner/repo/plugin/skill     Install a specific skill
+  $ skillfish add owner/repo --path path/to   Install skill at specific path
+  $ skillfish add owner/repo --project        Install to current project only`)
+  .action(async (repoArg: string, options: AddCommandOptions, command: Command) => {
     const jsonMode = command.parent?.opts().json ?? false;
     const jsonOutput = createJsonOutput();
     const version = command.parent?.opts().version ?? '0.0.0';
@@ -72,7 +82,27 @@ export const addCommand = new Command('add')
     }
 
     function outputJsonAndExit(exitCode: number): never {
+      jsonOutput.exit_code = exitCode;
       console.log(JSON.stringify(jsonOutput, null, 2));
+      process.exit(exitCode);
+    }
+
+    /**
+     * Unified error handler that handles both JSON and TTY modes.
+     * In JSON mode: adds error to output and exits with JSON.
+     * In TTY mode: logs error to console and exits.
+     * @param useClackLog - Use p.log.error() instead of console.error()
+     */
+    function exitWithError(message: string, exitCode: ExitCode, useClackLog = false): never {
+      if (jsonMode) {
+        addError(message);
+        outputJsonAndExit(exitCode);
+      }
+      if (useClackLog) {
+        p.log.error(message);
+      } else {
+        console.error(message);
+      }
       process.exit(exitCode);
     }
 
@@ -96,13 +126,10 @@ export const addCommand = new Command('add')
     // Validate --path if provided
     if (explicitPath !== null) {
       if (!isValidPath(explicitPath)) {
-        const errorMsg = 'Invalid --path value. Path must be relative and contain only safe characters.';
-        if (jsonMode) {
-          addError(errorMsg);
-          outputJsonAndExit(EXIT_INVALID_ARGS);
-        }
-        console.error(errorMsg);
-        process.exit(EXIT_INVALID_ARGS);
+        exitWithError(
+          'Invalid --path value. Path must be relative and contain only safe characters.',
+          EXIT_CODES.INVALID_ARGS
+        );
       }
     }
 
@@ -118,39 +145,26 @@ export const addCommand = new Command('add')
       owner = o;
       repo = r;
       // Security: validate plugin and skill names
-      if (!/^[\w.-]+$/.test(plugin) || !/^[\w.-]+$/.test(skill)) {
-        const errorMsg =
-          'Invalid plugin or skill name. Use only alphanumeric characters, dots, hyphens, and underscores.';
-        if (jsonMode) {
-          addError(errorMsg);
-          outputJsonAndExit(EXIT_INVALID_ARGS);
-        }
-        console.error(errorMsg);
-        process.exit(EXIT_INVALID_ARGS);
+      if (!isValidName(plugin) || !isValidName(skill)) {
+        exitWithError(
+          'Invalid plugin or skill name. Use only alphanumeric characters, dots, hyphens, and underscores.',
+          EXIT_CODES.INVALID_ARGS
+        );
       }
       explicitPath = explicitPath || `plugins/${plugin}/skills/${skill}`;
       if (!jsonMode) {
         console.log(`Installing skill from: ${plugin}/${skill}`);
       }
     } else {
-      const errorMsg = 'Invalid format. Use: owner/repo or owner/repo/plugin/skill';
-      if (jsonMode) {
-        addError(errorMsg);
-        outputJsonAndExit(EXIT_INVALID_ARGS);
-      }
-      console.error(errorMsg);
-      process.exit(EXIT_INVALID_ARGS);
+      exitWithError(
+        'Invalid format. Use: owner/repo or owner/repo/plugin/skill',
+        EXIT_CODES.INVALID_ARGS
+      );
     }
 
     // Validate owner/repo (security: prevent injection)
-    if (!owner || !repo || !/^[\w.-]+$/.test(owner) || !/^[\w.-]+$/.test(repo)) {
-      const errorMsg = 'Invalid repository format. Use: owner/repo';
-      if (jsonMode) {
-        addError(errorMsg);
-        outputJsonAndExit(EXIT_INVALID_ARGS);
-      }
-      console.error(errorMsg);
-      process.exit(EXIT_INVALID_ARGS);
+    if (!owner || !repo || !isValidName(owner) || !isValidName(repo)) {
+      exitWithError('Invalid repository format. Use: owner/repo', EXIT_CODES.INVALID_ARGS);
     }
 
     // 1. Discover or select skills
@@ -160,9 +174,9 @@ export const addCommand = new Command('add')
 
     if (!skillPaths || skillPaths.length === 0) {
       if (jsonMode) {
-        outputJsonAndExit(EXIT_NOT_FOUND);
+        outputJsonAndExit(EXIT_CODES.NOT_FOUND);
       }
-      process.exit(EXIT_NOT_FOUND);
+      process.exit(EXIT_CODES.NOT_FOUND);
     }
 
     // 2. Determine install location (global vs project)
@@ -175,11 +189,11 @@ export const addCommand = new Command('add')
       const errorMsg = 'No agents detected. Install Claude Code, Cursor, or another supported agent first.';
       if (jsonMode) {
         addError(errorMsg);
-        outputJsonAndExit(EXIT_GENERAL_ERROR);
+        outputJsonAndExit(EXIT_CODES.GENERAL_ERROR);
       }
       p.log.error(errorMsg);
       p.outro(pc.dim('https://skill.fish/agents'));
-      process.exit(EXIT_GENERAL_ERROR);
+      process.exit(EXIT_CODES.GENERAL_ERROR);
     }
 
     let targetAgents: readonly Agent[];
@@ -200,20 +214,23 @@ export const addCommand = new Command('add')
     let totalInstalled = 0;
     let totalSkipped = 0;
 
+    // SECURITY: Ask for confirmation before installation (unless --yes is used)
+    // Single confirmation for all selected skills
+    if (!trustSource && !jsonMode && isInputTTY()) {
+      const skillNames = skillPaths.map((sp) => deriveSkillName(sp, repo));
+      const shouldInstall = await confirmInstallBatch(owner, repo, skillNames);
+      if (!shouldInstall) {
+        for (const skillName of skillNames) {
+          p.log.warn(`Skipped ${pc.bold(skillName)} (not confirmed)`);
+          jsonOutput.skipped.push({ skill: skillName, agent: 'all', reason: 'User declined' });
+        }
+        p.outro(pc.dim('Cancelled'));
+        process.exit(EXIT_CODES.SUCCESS);
+      }
+    }
+
     for (const skillPath of skillPaths) {
       const skillName = deriveSkillName(skillPath, repo);
-
-      // SECURITY: Ask for confirmation before installation (unless --yes is used)
-      if (!trustSource && !jsonMode && isInputTTY()) {
-        const shouldInstall = await confirmInstall(owner, repo, skillName);
-        if (!shouldInstall) {
-          if (!jsonMode) {
-            p.log.warn(`Skipped ${pc.bold(skillName)} (not confirmed)`);
-          }
-          jsonOutput.skipped.push({ skill: skillName, agent: 'all', reason: 'User declined' });
-          continue;
-        }
-      }
 
       // Show install progress
       let spinner: ReturnType<typeof p.spinner> | null = null;
@@ -232,7 +249,7 @@ export const addCommand = new Command('add')
         if (result.failed) {
           spinner.stop(pc.red(`${SKILL_FILENAME} not found`));
         } else {
-          spinner.stop(pc.green('Downloaded'));
+          spinner.stop(pc.green('Installed'));
         }
       }
 
@@ -260,7 +277,7 @@ export const addCommand = new Command('add')
 
       for (const skipped of result.skipped) {
         if (!jsonMode) {
-          console.log(`  ${pc.yellow('●')} ${skipped.agent} ${pc.dim('(exists)')}`);
+          console.log(`  ${pc.yellow('●')} ${skipped.agent} ${pc.dim('(already installed)')}`);
         }
         jsonOutput.skipped.push(skipped);
       }
@@ -287,7 +304,7 @@ export const addCommand = new Command('add')
 
     // Summary
     if (jsonMode) {
-      outputJsonAndExit(EXIT_SUCCESS);
+      outputJsonAndExit(EXIT_CODES.SUCCESS);
     }
 
     console.log();
@@ -298,7 +315,7 @@ export const addCommand = new Command('add')
     } else {
       p.outro(pc.yellow('No skills installed'));
     }
-    process.exit(EXIT_SUCCESS);
+    process.exit(EXIT_CODES.SUCCESS);
   });
 
 // === Helper Functions ===
@@ -350,7 +367,7 @@ async function selectInstallLocation(
 
   if (p.isCancel(location)) {
     p.cancel('Cancelled');
-    process.exit(EXIT_CANCELLED);
+    process.exit(EXIT_CODES.SUCCESS);
   }
 
   return location === 'project' ? process.cwd() : homedir();
@@ -377,7 +394,7 @@ async function selectAgents(
 
   if (p.isCancel(installAll)) {
     p.cancel('Cancelled');
-    process.exit(EXIT_CANCELLED);
+    process.exit(EXIT_CODES.SUCCESS);
   }
 
   if (installAll) {
@@ -399,7 +416,7 @@ async function selectAgents(
 
   if (p.isCancel(selected)) {
     p.cancel('Cancelled');
-    process.exit(EXIT_CANCELLED);
+    process.exit(EXIT_CODES.SUCCESS);
   }
 
   return agents.filter((a) => selected.includes(a.name));
@@ -410,7 +427,7 @@ async function discoverSkillPaths(
   repo: string,
   installAll: boolean,
   jsonMode: boolean,
-  jsonOutput: JsonOutput
+  jsonOutput: AddJsonOutput
 ): Promise<string[] | null> {
   let skillPaths: string[];
 
@@ -418,17 +435,17 @@ async function discoverSkillPaths(
     skillPaths = await findAllSkillMdFiles(owner, repo);
   } catch (err) {
     let errorMsg: string;
-    let exitCode = EXIT_GENERAL_ERROR;
+    let exitCode: ExitCode = EXIT_CODES.GENERAL_ERROR;
 
     if (err instanceof RateLimitError) {
       errorMsg = err.message;
-      exitCode = EXIT_NETWORK_ERROR;
+      exitCode = EXIT_CODES.NETWORK_ERROR;
     } else if (err instanceof RepoNotFoundError) {
       errorMsg = err.message;
-      exitCode = EXIT_NOT_FOUND;
+      exitCode = EXIT_CODES.NOT_FOUND;
     } else if (err instanceof NetworkError) {
       errorMsg = err.message;
-      exitCode = EXIT_NETWORK_ERROR;
+      exitCode = EXIT_CODES.NETWORK_ERROR;
     } else if (err instanceof GitHubApiError) {
       errorMsg = err.message;
     } else {
@@ -544,7 +561,7 @@ async function discoverSkillPaths(
 
   if (p.isCancel(selected)) {
     p.cancel('Cancelled');
-    process.exit(EXIT_CANCELLED);
+    process.exit(EXIT_CODES.SUCCESS);
   }
 
   return selected;
@@ -553,16 +570,29 @@ async function discoverSkillPaths(
 /**
  * SECURITY: Show warning and ask for user confirmation before installing.
  * This mitigates supply chain attacks by making users acknowledge the source.
+ * Handles batch confirmation for multiple skills at once.
  */
-async function confirmInstall(owner: string, repo: string, skillName: string): Promise<boolean> {
+async function confirmInstallBatch(owner: string, repo: string, skillNames: string[]): Promise<boolean> {
   console.log();
   p.log.warn(pc.yellow('Skills can instruct AI agents to perform actions on your behalf.'));
   console.log(pc.dim(`  Source: github.com/${owner}/${repo}`));
   console.log(pc.dim('  Use --yes to skip this prompt for trusted sources.'));
+
+  if (skillNames.length > 1) {
+    console.log();
+    console.log(pc.dim('  Skills to install:'));
+    for (const name of skillNames) {
+      console.log(pc.dim(`    • ${name}`));
+    }
+  }
   console.log();
 
+  const skillLabel = skillNames.length === 1
+    ? pc.bold(skillNames[0])
+    : `${pc.bold(skillNames.length.toString())} skills`;
+
   const proceed = await p.confirm({
-    message: `Install ${pc.bold(skillName)} from ${pc.cyan(`${owner}/${repo}`)}?`,
+    message: `Install ${skillLabel} from ${pc.cyan(`${owner}/${repo}`)}?`,
     initialValue: true,
   });
 

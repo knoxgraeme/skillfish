@@ -178,23 +178,59 @@ export async function batchMap<T, R>(
   return results;
 }
 
-// === JSON Output Helpers ===
+// === JSON Output Types ===
 
 /**
- * JSON output structure for automation/scripting.
+ * Common installed skill structure used across commands.
  */
-export interface JsonOutput {
+export interface InstalledSkill {
+  skill: string;
+  agent: string;
+  path: string;
+  location?: 'global' | 'project';
+}
+
+/**
+ * Base JSON output with fields common to all commands.
+ * All command-specific types extend this for API consistency.
+ */
+export interface BaseJsonOutput {
   success: boolean;
-  installed: Array<{ skill: string; agent: string; path: string }>;
-  skipped: Array<{ skill: string; agent: string; reason: string }>;
+  exit_code?: number;
   errors: string[];
+}
+
+/**
+ * JSON output for the `add` command.
+ */
+export interface AddJsonOutput extends BaseJsonOutput {
+  installed: InstalledSkill[];
+  skipped: Array<{ skill: string; agent: string; reason: string }>;
   skills_found?: string[];
 }
 
 /**
- * Create a fresh JSON output object.
+ * JSON output for the `list` command.
  */
-export function createJsonOutput(): JsonOutput {
+export interface ListJsonOutput extends BaseJsonOutput {
+  installed: InstalledSkill[];
+  agents_detected: string[];
+}
+
+/**
+ * JSON output for the `remove` command.
+ */
+export interface RemoveJsonOutput extends BaseJsonOutput {
+  removed: InstalledSkill[];
+}
+
+/** @deprecated Use AddJsonOutput instead */
+export type JsonOutput = AddJsonOutput;
+
+/**
+ * Create a fresh JSON output object for the add command.
+ */
+export function createJsonOutput(): AddJsonOutput {
   return {
     success: true,
     installed: [],

@@ -10,10 +10,9 @@ import {
   rmSync,
   lstatSync,
   readdirSync,
-  readFileSync,
 } from 'fs';
 import { homedir } from 'os';
-import { join, dirname, basename } from 'path';
+import { join } from 'path';
 import { randomUUID } from 'crypto';
 import degit from 'degit';
 import type { Agent } from './agents.js';

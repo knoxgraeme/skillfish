@@ -14,19 +14,6 @@ export const SKILL_FILENAME = 'SKILL.md';
 // === Error Types ===
 
 /**
- * Thrown when no SKILL.md is found in a repository.
- */
-export class SkillNotFoundError extends Error {
-  constructor(
-    public owner: string,
-    public repo: string
-  ) {
-    super(`No ${SKILL_FILENAME} found in ${owner}/${repo}`);
-    this.name = 'SkillNotFoundError';
-  }
-}
-
-/**
  * Thrown when GitHub API rate limit is exceeded.
  */
 export class RateLimitError extends Error {
