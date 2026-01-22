@@ -177,3 +177,42 @@ export async function batchMap<T, R>(
   await Promise.all(workers);
   return results;
 }
+
+// === JSON Output Helpers ===
+
+/**
+ * JSON output structure for automation/scripting.
+ */
+export interface JsonOutput {
+  success: boolean;
+  installed: Array<{ skill: string; agent: string; path: string }>;
+  skipped: Array<{ skill: string; agent: string; reason: string }>;
+  errors: string[];
+  skills_found?: string[];
+}
+
+/**
+ * Create a fresh JSON output object.
+ */
+export function createJsonOutput(): JsonOutput {
+  return {
+    success: true,
+    installed: [],
+    skipped: [],
+    errors: [],
+  };
+}
+
+/**
+ * Check if stdout is a TTY (interactive terminal).
+ */
+export function isTTY(): boolean {
+  return process.stdout.isTTY === true;
+}
+
+/**
+ * Check if stdin is a TTY (interactive terminal).
+ */
+export function isInputTTY(): boolean {
+  return process.stdin.isTTY === true;
+}
