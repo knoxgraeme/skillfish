@@ -28,3 +28,16 @@ yarn-error.log*
 # Cache
 .cache/
 *.tsbuildinfo
+
+# Agent configurations (local development)
+.claude/
+.codex/
+.cursor/
+.gemini/
+.goose/
+.cline/
+.mcp.json
+
+# Development tracking
+todos/
+.context/
