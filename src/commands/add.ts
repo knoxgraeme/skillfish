@@ -213,6 +213,7 @@ Examples:
     // Install each selected skill
     let totalInstalled = 0;
     let totalSkipped = 0;
+    const telemetryPromises: Promise<void>[] = [];
 
     // SECURITY: Ask for confirmation before installation (unless --yes is used)
     // Single confirmation for all selected skills
@@ -293,13 +294,18 @@ Examples:
       totalInstalled += result.installed.length;
       totalSkipped += result.skipped.length;
 
-      // Track successful installs (fire-and-forget telemetry)
+      // Track successful installs (telemetry with timeout)
       if (result.installed.length > 0) {
         // Construct github value to match skills.github column format: owner/repo/path/to/skill
         const skillDir = skillPath.replace(/\/?SKILL\.md$/i, '').replace(/^\.?\/?/, '');
         const github = skillDir ? `${owner}/${repo}/${skillDir}` : `${owner}/${repo}`;
-        trackInstall(github);
+        telemetryPromises.push(trackInstall(github));
       }
+    }
+
+    // Wait for telemetry to complete (with timeout built into trackInstall)
+    if (telemetryPromises.length > 0) {
+      await Promise.all(telemetryPromises);
     }
 
     // Summary

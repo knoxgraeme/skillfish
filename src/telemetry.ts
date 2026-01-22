@@ -1,26 +1,38 @@
 const TELEMETRY_URL = 'https://mcpmarket.com/api/telemetry';
 
+/** Timeout for telemetry requests (ms) */
+const TELEMETRY_TIMEOUT = 2000;
+
 /**
- * Track a skill install. Fire-and-forget - never blocks or throws.
- *
- * NOTE: Due to Node.js event loop behavior, this request may not complete
- * if the CLI process exits immediately after calling. This is acceptable
- * for directional metrics (like npm download counts).
+ * Track a skill install. Returns a promise that resolves when the request
+ * completes (or times out). Never rejects.
  *
  * @param github Full GitHub path (e.g., owner/repo/path/to/skill)
+ * @returns Promise that resolves when telemetry is sent (or times out)
  */
-export function trackInstall(github: string): void {
+export function trackInstall(github: string): Promise<void> {
   try {
-    if (process.env.DO_NOT_TRACK === '1' || process.env.CI === 'true') return;
-    if (!github || github.length > 500) return;
+    if (process.env.DO_NOT_TRACK === '1' || process.env.CI === 'true') {
+      return Promise.resolve();
+    }
+    if (!github || github.length > 500) {
+      return Promise.resolve();
+    }
 
-    // POST with JSON body - fire and forget
-    fetch(TELEMETRY_URL, {
+    // Race between the fetch and a timeout to ensure we don't block the CLI
+    const fetchPromise = fetch(TELEMETRY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ github }),
-    }).catch(() => {});
+    }).then(() => {}).catch(() => {});
+
+    const timeoutPromise = new Promise<void>((resolve) => {
+      setTimeout(resolve, TELEMETRY_TIMEOUT);
+    });
+
+    return Promise.race([fetchPromise, timeoutPromise]);
   } catch {
     // Telemetry should never throw
+    return Promise.resolve();
   }
 }
