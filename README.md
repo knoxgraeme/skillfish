@@ -32,6 +32,8 @@ One command installs skills to **all detected agents**:
 
 ## Usage
 
+### Install Skills
+
 ```bash
 # Install a skill (auto-discovers SKILL.md location)
 npx skillfish add owner/repo
@@ -50,9 +52,47 @@ npx skillfish add owner/repo --force
 
 # Skip confirmation prompt
 npx skillfish add owner/repo --yes
+```
 
-# List installed skills
+### List Skills
+
+```bash
+# Interactive agent and location picker
+npx skillfish list
+
+# List global skills only
 npx skillfish list --global
+
+# List project skills only
+npx skillfish list --project
+
+# List skills for a specific agent
+npx skillfish list --agent "Claude Code"
+```
+
+### Remove Skills
+
+```bash
+# Interactive skill picker
+npx skillfish remove
+
+# Remove a skill by name
+npx skillfish remove my-skill
+
+# Remove all installed skills
+npx skillfish remove --all
+
+# Remove from current project only
+npx skillfish remove my-skill --project
+
+# Remove from home directory only
+npx skillfish remove my-skill --global
+
+# Remove from specific agent
+npx skillfish remove my-skill --agent "Claude Code"
+
+# Skip confirmation prompt
+npx skillfish remove my-skill --yes
 ```
 
 ## Interactive Selection

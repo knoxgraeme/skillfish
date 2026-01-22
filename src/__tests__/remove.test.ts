@@ -15,11 +15,13 @@ describe('remove command', () => {
     expect(stdout).toContain('--agent');
   });
 
-  it('requires a skill name or --all flag', () => {
-    const { exitCode, stderr } = invokeCli(['remove']);
-    // Non-zero exit since no skill name or --all flag provided
-    expect(exitCode).not.toBe(0);
-    expect(stderr).toContain('skill name');
+  it('requires a skill name or --all flag in non-interactive mode', () => {
+    // Test via JSON mode which is non-interactive
+    const { stdout, exitCode } = invokeCli(['--json', 'remove']);
+    expect(exitCode).toBe(2); // EXIT_INVALID_ARGS
+    const json = JSON.parse(stdout);
+    expect(json.success).toBe(false);
+    expect(json.errors[0]).toContain('specify a skill name');
   });
 
   it('outputs valid JSON with --json flag when skill not found', () => {

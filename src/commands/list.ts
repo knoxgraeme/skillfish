@@ -5,7 +5,6 @@
 import { Command } from 'commander';
 import { homedir } from 'os';
 import { join } from 'path';
-import { existsSync, rmSync } from 'fs';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { getDetectedAgents, getAgentSkillDir, type Agent } from '../lib/agents.js';
@@ -131,43 +130,15 @@ Examples:
       return { installed, globalSkills, projectSkills };
     }
 
-    // Helper to display skills for an agent
-    function displaySkills(
-      globalSkills: InstalledSkill[],
-      projectSkills: InstalledSkill[],
-      agentName?: string
-    ): void {
-      const title = agentName ? `Skills for ${agentName}` : 'Installed skills';
+    // Helper to display skills for a single location
+    function displaySkillsForLocation(skills: InstalledSkill[], locationLabel: string): void {
       console.log();
-      p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim(title)}`);
-
-      let hasContent = false;
-
-      if (checkGlobal && globalSkills.length > 0) {
-        console.log();
-        console.log(pc.bold(pc.underline('Global (~/.)')));
-        for (const item of globalSkills) {
-          console.log(`  ${pc.green('•')} ${item.skill}`);
-        }
-        hasContent = true;
+      console.log(pc.bold(pc.underline(locationLabel)));
+      for (const item of skills) {
+        console.log(`  ${pc.green('•')} ${item.skill}`);
       }
-
-      if (checkProject && projectSkills.length > 0) {
-        console.log();
-        console.log(pc.bold(pc.underline('Project (./)')));
-        for (const item of projectSkills) {
-          console.log(`  ${pc.green('•')} ${item.skill}`);
-        }
-        hasContent = true;
-      }
-
-      const total = globalSkills.length + projectSkills.length;
       console.log();
-      if (total === 0) {
-        p.outro(pc.dim('No skills installed'));
-      } else {
-        p.outro(`${pc.cyan(total.toString())} skill${total === 1 ? '' : 's'}`);
-      }
+      p.outro(`${pc.cyan(skills.length.toString())} skill${skills.length === 1 ? '' : 's'}`);
     }
 
     // Filter to specific agent if --agent flag provided
@@ -191,7 +162,45 @@ Examples:
         });
       }
 
-      displaySkills(globalSkills, projectSkills, found[0].name);
+      // Display intro
+      console.log();
+      p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim(`Skills for ${found[0].name}`)}`);
+
+      if (globalSkills.length === 0 && projectSkills.length === 0) {
+        p.outro(pc.dim('No skills installed'));
+        process.exit(EXIT_CODES.SUCCESS);
+      }
+
+      // If both locations have skills, show location selector (same as interactive)
+      const hasBothLocations = globalSkills.length > 0 && projectSkills.length > 0;
+
+      if (hasBothLocations && isInputTTY()) {
+        const locationOptions = [
+          { value: 'global' as const, label: `Global (~/) ${pc.dim(`(${globalSkills.length})`)}` },
+          { value: 'project' as const, label: `Project (./) ${pc.dim(`(${projectSkills.length})`)}` },
+        ];
+
+        const selectedLocation = await p.select({
+          message: 'Select location',
+          options: locationOptions,
+        });
+
+        if (p.isCancel(selectedLocation)) {
+          p.cancel('Cancelled');
+          process.exit(EXIT_CODES.SUCCESS);
+        }
+
+        const skillsToShow = selectedLocation === 'global' ? globalSkills : projectSkills;
+        const locationLabel = selectedLocation === 'global' ? 'Global (~/)' : 'Project (./)';
+        displaySkillsForLocation(skillsToShow, locationLabel);
+      } else {
+        // Non-interactive or single location: show available skills
+        if (globalSkills.length > 0) {
+          displaySkillsForLocation(globalSkills, 'Global (~/)');
+        } else {
+          displaySkillsForLocation(projectSkills, 'Project (./)');
+        }
+      }
       process.exit(EXIT_CODES.SUCCESS);
     }
 
@@ -204,12 +213,12 @@ Examples:
       });
     }
 
-    // Interactive mode: show agent selector with skill management
+    // Interactive mode: show agent selector
     if (isInputTTY()) {
       console.log();
-      p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim('Manage skills')}`);
+      p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim('Installed skills')}`);
 
-      // Build options with skill counts in label (always visible)
+      // Step 1: Build options with skill counts in label (always visible)
       const agentOptions = detected.map((agent) => {
         const { installed } = collectSkills([agent]);
         const count = installed.length;
@@ -234,86 +243,55 @@ Examples:
         process.exit(EXIT_CODES.SUCCESS);
       }
 
-      // Get skills for selected agent
-      const { installed: agentSkills } = collectSkills([selectedAgent]);
+      // Step 2: Get skills for selected agent
+      const { globalSkills, projectSkills } = collectSkills([selectedAgent]);
+      const hasBothLocations = globalSkills.length > 0 && projectSkills.length > 0;
 
-      if (agentSkills.length === 0) {
+      if (globalSkills.length === 0 && projectSkills.length === 0) {
         p.log.info(`No skills installed for ${pc.cyan(selectedAgent.name)}`);
         p.outro(pc.dim('Done'));
         process.exit(EXIT_CODES.SUCCESS);
       }
 
-      // Single multi-select: select skills to remove (or none to exit)
-      const skillOptions = agentSkills.map((item) => ({
-        value: item.path,
-        label: item.skill,
-        hint: item.location ?? 'global',
-      }));
+      // Step 3: If both locations have skills, let user choose location
+      let skillsToShow: InstalledSkill[];
+      let locationLabel: string;
 
-      const toRemove = await p.multiselect({
-        message: `${selectedAgent.name} skills ${pc.dim('(select to remove, enter to confirm)')}`,
-        options: skillOptions,
-        required: false,
-      });
+      if (hasBothLocations) {
+        const locationOptions = [
+          { value: 'global' as const, label: `Global (~/) ${pc.dim(`(${globalSkills.length})`)}` },
+          { value: 'project' as const, label: `Project (./) ${pc.dim(`(${projectSkills.length})`)}` },
+        ];
 
-      if (p.isCancel(toRemove)) {
-        p.cancel('Cancelled');
-        process.exit(EXIT_CODES.SUCCESS);
-      }
+        const selectedLocation = await p.select({
+          message: 'Select location',
+          options: locationOptions,
+        });
 
-      if (toRemove.length === 0) {
-        p.outro(pc.dim('No changes'));
-        process.exit(EXIT_CODES.SUCCESS);
-      }
+        if (p.isCancel(selectedLocation)) {
+          p.cancel('Cancelled');
+          process.exit(EXIT_CODES.SUCCESS);
+        }
 
-      // Confirm removal
-      const skillNames = toRemove.map((path) => {
-        const found = agentSkills.find((s) => s.path === path);
-        return found?.skill || path;
-      });
-
-      console.log();
-      p.log.warn(pc.yellow('Skills to remove:'));
-      for (const name of skillNames) {
-        console.log(`  ${pc.red('•')} ${name}`);
-      }
-
-      const confirm = await p.confirm({
-        message: `Remove ${toRemove.length} skill${toRemove.length === 1 ? '' : 's'}?`,
-        initialValue: false,
-      });
-
-      if (p.isCancel(confirm) || !confirm) {
-        p.cancel('Cancelled');
-        process.exit(EXIT_CODES.SUCCESS);
-      }
-
-      // Perform removal
-      let removed = 0;
-      for (const skillPath of toRemove) {
-        try {
-          if (existsSync(skillPath)) {
-            rmSync(skillPath, { recursive: true });
-            const skillName = agentSkills.find((s) => s.path === skillPath)?.skill || skillPath;
-            console.log(`  ${pc.green('✓')} Removed ${skillName}`);
-            removed++;
-          }
-        } catch (err) {
-          const skillName = agentSkills.find((s) => s.path === skillPath)?.skill || skillPath;
-          console.log(`  ${pc.red('✗')} Failed to remove ${skillName}`);
+        skillsToShow = selectedLocation === 'global' ? globalSkills : projectSkills;
+        locationLabel = selectedLocation === 'global' ? 'Global (~/)' : 'Project (./)';
+      } else {
+        // Only one location has skills, use that
+        if (globalSkills.length > 0) {
+          skillsToShow = globalSkills;
+          locationLabel = 'Global (~/)';
+        } else {
+          skillsToShow = projectSkills;
+          locationLabel = 'Project (./)';
         }
       }
 
-      console.log();
-      if (removed > 0) {
-        p.outro(pc.green(`Removed ${removed} skill${removed === 1 ? '' : 's'}`));
-      } else {
-        p.outro(pc.yellow('No skills removed'));
-      }
+      // Step 4: Display skills for selected location
+      displaySkillsForLocation(skillsToShow, locationLabel);
       process.exit(EXIT_CODES.SUCCESS);
     }
 
-    // Non-interactive mode without agent filter: show all agents with skills
+    // Non-interactive mode: display all agents with skills
     const { installed, globalSkills, projectSkills } = collectSkills(detected);
 
     console.log();
