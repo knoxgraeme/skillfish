@@ -31,6 +31,8 @@ export interface InstallResult {
 export interface InstallOptions {
   force: boolean;
   baseDir: string;
+  /** Branch to clone from. If not specified, degit will use default branch detection. */
+  branch?: string;
 }
 
 export interface CopyResult {
@@ -130,15 +132,21 @@ export async function installSkill(
     failed: false,
   };
 
-  const { force, baseDir } = options;
+  const { force, baseDir, branch } = options;
 
   const tmpDir = join(homedir(), '.cache', 'skillfish', `${owner}-${repo}-${randomUUID()}`);
   mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
 
   try {
     // Download skill
+    // Build degit path: owner/repo[/subpath][#branch]
     const downloadPath = skillPath === SKILL_FILENAME ? '' : skillPath;
-    const degitPath = downloadPath ? `${owner}/${repo}/${downloadPath}` : `${owner}/${repo}`;
+    let degitPath = downloadPath ? `${owner}/${repo}/${downloadPath}` : `${owner}/${repo}`;
+
+    // Append branch if specified (critical for repos with non-standard default branches like 'canary')
+    if (branch) {
+      degitPath = `${degitPath}#${branch}`;
+    }
 
     const emitter = degit(degitPath, { cache: false, force: true });
     await emitter.clone(tmpDir);
@@ -183,7 +191,15 @@ export async function installSkill(
     if (err instanceof SkillMdNotFoundError) {
       result.failureReason = err.message;
     } else {
-      result.failureReason = err instanceof Error ? err.message : String(err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      // Provide more helpful error messages for common degit failures
+      if (errMsg.includes('could not find commit hash for HEAD')) {
+        result.failureReason = `Could not clone repository. The branch or path may not exist, or there may be a network issue. Tried: ${owner}/${repo}${skillPath !== SKILL_FILENAME ? `/${skillPath}` : ''}`;
+      } else if (errMsg.includes('404')) {
+        result.failureReason = `Repository or path not found: ${owner}/${repo}${skillPath !== SKILL_FILENAME ? `/${skillPath}` : ''}`;
+      } else {
+        result.failureReason = errMsg;
+      }
     }
   } finally {
     rmSync(tmpDir, { recursive: true, force: true });

@@ -109,6 +109,7 @@ describe('findAllSkillMdFiles', () => {
   });
 
   it('returns skill paths on successful API response', async () => {
+    const repoResponse = { default_branch: 'main' };
     const treeResponse = {
       tree: [
         { path: 'SKILL.md', type: 'blob' },
@@ -116,16 +117,17 @@ describe('findAllSkillMdFiles', () => {
         { path: 'README.md', type: 'blob' },
       ],
     };
-    mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify(treeResponse), { status: 200 })
-    );
+    mockFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify(repoResponse), { status: 200 })) // repo metadata
+      .mockResolvedValueOnce(new Response(JSON.stringify(treeResponse), { status: 200 })); // tree
 
-    const paths = await findAllSkillMdFiles('owner', 'repo');
+    const result = await findAllSkillMdFiles('owner', 'repo');
 
-    expect(paths).toEqual(['SKILL.md', 'skills/foo/SKILL.md']);
+    expect(result.paths).toEqual(['SKILL.md', 'skills/foo/SKILL.md']);
+    expect(result.branch).toBe('main');
   });
 
-  it('throws RateLimitError when rate limited', async () => {
+  it('throws RateLimitError when rate limited on repo fetch', async () => {
     const resetTime = Math.floor(Date.now() / 1000) + 3600;
     const headers = new Headers({
       'X-RateLimit-Remaining': '0',
@@ -136,69 +138,69 @@ describe('findAllSkillMdFiles', () => {
     await expect(findAllSkillMdFiles('owner', 'repo')).rejects.toThrow(RateLimitError);
   });
 
-  it('tries master branch when main returns 404', async () => {
+  it('tries fallback branches when default branch fetch returns server error', async () => {
     const treeResponse = {
       tree: [{ path: 'SKILL.md', type: 'blob' }],
     };
+    // When repo metadata returns 500, we fall back to trying main/master branches directly
     mockFetch
-      .mockResolvedValueOnce(new Response('not found', { status: 404 })) // main
-      .mockResolvedValueOnce(new Response(JSON.stringify(treeResponse), { status: 200 })); // master
+      .mockResolvedValueOnce(new Response('server error', { status: 500 })) // repo metadata fails with 500
+      .mockResolvedValueOnce(new Response('server error', { status: 500 })) // retry 1
+      .mockResolvedValueOnce(new Response('server error', { status: 500 })) // retry 2
+      .mockResolvedValueOnce(new Response(JSON.stringify(treeResponse), { status: 200 })); // main tree succeeds
 
-    const paths = await findAllSkillMdFiles('owner', 'repo');
+    const result = await findAllSkillMdFiles('owner', 'repo');
 
-    expect(paths).toEqual(['SKILL.md']);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(result.paths).toEqual(['SKILL.md']);
+    expect(result.branch).toBe('main');
   });
 
-  it('throws RepoNotFoundError when both branches return 404', async () => {
-    mockFetch
-      .mockResolvedValueOnce(new Response('not found', { status: 404 })) // main
-      .mockResolvedValueOnce(new Response('not found', { status: 404 })); // master
+  it('throws RepoNotFoundError when repo does not exist', async () => {
+    mockFetch.mockResolvedValueOnce(new Response('not found', { status: 404 })); // repo metadata
 
     await expect(findAllSkillMdFiles('owner', 'repo')).rejects.toThrow(RepoNotFoundError);
   });
 
   it('throws GitHubApiError on malformed tree response', async () => {
-    // tree present but not an array - fails type guard
-    mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ tree: 'not-an-array' }), { status: 200 })
-    );
+    const repoResponse = { default_branch: 'main' };
+    mockFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify(repoResponse), { status: 200 })) // repo metadata
+      .mockResolvedValueOnce(new Response(JSON.stringify({ tree: 'not-an-array' }), { status: 200 })); // malformed tree
 
     await expect(findAllSkillMdFiles('owner', 'repo')).rejects.toThrow(GitHubApiError);
   });
 
   it('throws GitHubApiError when tree items lack required fields', async () => {
-    // tree items missing required path/type fields
-    mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ tree: [{ invalid: true }] }), { status: 200 })
-    );
+    const repoResponse = { default_branch: 'main' };
+    mockFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify(repoResponse), { status: 200 })) // repo metadata
+      .mockResolvedValueOnce(new Response(JSON.stringify({ tree: [{ invalid: true }] }), { status: 200 })); // invalid tree
 
     await expect(findAllSkillMdFiles('owner', 'repo')).rejects.toThrow(GitHubApiError);
   });
 
   it('throws NetworkError on network failure', async () => {
-    // Both branches fail with network error
     const networkError = new Error('Network error');
-    mockFetch
-      .mockRejectedValueOnce(networkError) // main
-      .mockRejectedValueOnce(networkError); // master
+    mockFetch.mockRejectedValueOnce(networkError); // repo metadata fails
 
     await expect(findAllSkillMdFiles('owner', 'repo')).rejects.toThrow(NetworkError);
   });
 
-  it('returns empty array when tree has no SKILL.md files', async () => {
+  it('returns empty paths array when tree has no SKILL.md files', async () => {
+    const repoResponse = { default_branch: 'main' };
     const treeResponse = {
       tree: [
         { path: 'README.md', type: 'blob' },
         { path: 'src/index.ts', type: 'blob' },
       ],
     };
-    mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify(treeResponse), { status: 200 })
-    );
+    mockFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify(repoResponse), { status: 200 })) // repo metadata
+      .mockResolvedValueOnce(new Response(JSON.stringify(treeResponse), { status: 200 })); // tree
 
-    const paths = await findAllSkillMdFiles('owner', 'repo');
+    const result = await findAllSkillMdFiles('owner', 'repo');
 
-    expect(paths).toEqual([]);
+    expect(result.paths).toEqual([]);
+    expect(result.branch).toBe('main');
   });
 });

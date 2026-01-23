@@ -29,6 +29,7 @@ import {
   RepoNotFoundError,
   NetworkError,
   GitHubApiError,
+  type SkillDiscoveryResult,
 } from '../lib/github.js';
 import { installSkill } from '../lib/installer.js';
 import { EXIT_CODES, isValidName, type ExitCode } from '../lib/constants.js';
@@ -173,16 +174,18 @@ Examples:
     }
 
     // 1. Discover or select skills
-    const skillPaths = explicitPath
-      ? [explicitPath]
+    const discoveryResult = explicitPath
+      ? { paths: [explicitPath], branch: undefined }
       : await discoverSkillPaths(owner, repo, installAll, jsonMode, jsonOutput, skillNameArg);
 
-    if (!skillPaths || skillPaths.length === 0) {
+    if (!discoveryResult || discoveryResult.paths.length === 0) {
       if (jsonMode) {
         outputJsonAndExit(EXIT_CODES.NOT_FOUND);
       }
       process.exit(EXIT_CODES.NOT_FOUND);
     }
+
+    const { paths: skillPaths, branch: discoveredBranch } = discoveryResult;
 
     // 2. Determine install location (global vs project)
     const baseDir = await selectInstallLocation(projectFlag, globalFlag, jsonMode);
@@ -249,6 +252,7 @@ Examples:
       const result = await installSkill(owner, repo, skillPath, skillName, targetAgents, {
         force,
         baseDir,
+        branch: discoveredBranch,
       });
 
       if (spinner) {
@@ -437,11 +441,11 @@ async function discoverSkillPaths(
   jsonMode: boolean,
   jsonOutput: AddJsonOutput,
   targetSkillName?: string
-): Promise<string[] | null> {
-  let skillPaths: string[];
+): Promise<{ paths: string[]; branch: string } | null> {
+  let skillDiscovery: SkillDiscoveryResult;
 
   try {
-    skillPaths = await findAllSkillMdFiles(owner, repo);
+    skillDiscovery = await findAllSkillMdFiles(owner, repo);
   } catch (err) {
     let errorMsg: string;
     let exitCode: ExitCode = EXIT_CODES.GENERAL_ERROR;
@@ -471,6 +475,8 @@ async function discoverSkillPaths(
     process.exit(exitCode);
   }
 
+  const { paths: skillPaths, branch } = skillDiscovery;
+
   if (skillPaths.length === 0) {
     const errorMsg = `No ${SKILL_FILENAME} found in repository`;
     if (jsonMode) {
@@ -496,8 +502,8 @@ async function discoverSkillPaths(
       const skillDir = sp === SKILL_FILENAME ? '.' : dirname(sp);
       const folderName = sp === SKILL_FILENAME ? repo : basename(skillDir);
 
-      // Fetch raw content to parse frontmatter
-      const content = await fetchSkillMdContent(owner, repo, sp);
+      // Fetch raw content to parse frontmatter (use discovered branch)
+      const content = await fetchSkillMdContent(owner, repo, sp, branch);
       const frontmatter = content ? parseFrontmatter(content) : {};
 
       return {
@@ -519,10 +525,23 @@ async function discoverSkillPaths(
 
   // If a specific skill name was requested, find and return it
   if (targetSkillName) {
-    const normalizedTarget = targetSkillName.toLowerCase();
-    const matchedSkill = skills.find(
-      (s) => s.name.toLowerCase() === normalizedTarget
-    );
+    // Normalize for flexible matching: lowercase, replace spaces/underscores with hyphens
+    const normalize = (s: string) => s.toLowerCase().replace(/[\s_]+/g, '-');
+    const normalizedTarget = normalize(targetSkillName);
+
+    // Try multiple matching strategies
+    const matchedSkill = skills.find((s) => {
+      const normalizedName = normalize(s.name);
+      const normalizedDir = normalize(s.dir);
+      const dirBasename = normalize(s.dir.split('/').pop() || '');
+
+      return (
+        normalizedName === normalizedTarget ||       // Exact name match (normalized)
+        normalizedDir === normalizedTarget ||        // Exact dir match
+        dirBasename === normalizedTarget ||          // Directory basename match
+        s.name.toLowerCase() === targetSkillName.toLowerCase() // Original case-insensitive
+      );
+    });
 
     if (matchedSkill) {
       const displayName = toTitleCase(matchedSkill.name);
@@ -530,7 +549,7 @@ async function discoverSkillPaths(
       if (!jsonMode) {
         p.log.info(`${pc.bold(displayName)}${desc ? pc.dim(` - ${desc}`) : ''}`);
       }
-      return [matchedSkill.dir];
+      return { paths: [matchedSkill.dir], branch };
     }
 
     // Skill not found - show available skills
@@ -557,7 +576,7 @@ async function discoverSkillPaths(
     if (!jsonMode) {
       p.log.info(`${pc.bold(displayName)}${desc ? pc.dim(` - ${desc}`) : ''}`);
     }
-    return [skill.dir];
+    return { paths: [skill.dir], branch };
   }
 
   // Build options for selection with frontmatter metadata
@@ -575,7 +594,7 @@ async function discoverSkillPaths(
       if (!jsonMode) {
         console.log(`Installing all ${skills.length} skills`);
       }
-      return skills.map((s) => s.dir);
+      return { paths: skills.map((s) => s.dir), branch };
     }
 
     // Otherwise, list skills and exit with guidance
@@ -606,7 +625,7 @@ async function discoverSkillPaths(
     process.exit(EXIT_CODES.SUCCESS);
   }
 
-  return selected;
+  return { paths: selected, branch };
 }
 
 /**
