@@ -13,11 +13,12 @@ import {
   writeFileSync,
 } from 'fs';
 import { homedir } from 'os';
-import { join, dirname } from 'path';
+import { join, dirname, resolve } from 'path';
 import { randomUUID } from 'crypto';
 import degit from 'degit';
 import type { Agent } from './agents.js';
 import { SKILL_FILENAME, fetchWithRetry } from './github.js';
+import { isValidPath, isGitTreeResponse } from '../utils.js';
 
 // === Types ===
 
@@ -67,9 +68,17 @@ export class SkillMdNotFoundError extends Error {
 // === Functions ===
 
 /**
+ * Maximum number of files to download via GitHub API fallback.
+ * Prevents excessive API calls for unexpectedly large directories.
+ */
+const MAX_FILES_TO_DOWNLOAD = 100;
+
+/**
  * Fallback download using GitHub API when degit fails.
  * Uses the tree API to list files, then downloads each via raw.githubusercontent.com.
  * This is more reliable for large repos where degit's ref resolution can fail.
+ *
+ * SECURITY: Validates all file paths to prevent directory traversal attacks.
  */
 async function downloadViaGitHubApi(
   owner: string,
@@ -80,57 +89,90 @@ async function downloadViaGitHubApi(
 ): Promise<void> {
   const headers = { 'User-Agent': 'skillfish' };
 
+  // URL-encode branch name to handle special characters safely
+  const encodedBranch = encodeURIComponent(branch);
+
   // Get the tree for the specific path
-  const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
+  const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/${encodedBranch}?recursive=1`;
   const treeRes = await fetchWithRetry(treeUrl, { headers });
 
   if (!treeRes.ok) {
     throw new Error(`Failed to fetch repository tree: ${treeRes.status}`);
   }
 
-  const treeData = (await treeRes.json()) as {
-    tree?: Array<{ path: string; type: string }>;
-  };
+  const treeData: unknown = await treeRes.json();
 
-  if (!treeData.tree || !Array.isArray(treeData.tree)) {
+  // Validate response structure at runtime
+  if (!isGitTreeResponse(treeData)) {
     throw new Error('Invalid tree response from GitHub API');
+  }
+
+  if (!treeData.tree || treeData.tree.length === 0) {
+    throw new Error('Empty tree response from GitHub API');
+  }
+
+  // Warn if tree is truncated (very large repos)
+  if (treeData.truncated) {
+    // Continue anyway - we'll get what we can
   }
 
   // Filter to files within our target path
   const prefix = subPath ? `${subPath}/` : '';
-  const files = treeData.tree.filter(
+  const targetFiles = treeData.tree.filter(
     (item) =>
       item.type === 'blob' &&
-      (subPath === '' ? !item.path.includes('/') || item.path.startsWith(prefix) : item.path.startsWith(prefix))
+      (subPath === '' || item.path === subPath || item.path.startsWith(prefix))
   );
-
-  // For subdirectory, filter to only files in that directory
-  const targetFiles = subPath
-    ? files.filter((f) => f.path.startsWith(prefix))
-    : files;
 
   if (targetFiles.length === 0) {
     throw new Error(`No files found at path: ${subPath || '(root)'}`);
   }
 
+  // Limit file count to prevent excessive downloads
+  if (targetFiles.length > MAX_FILES_TO_DOWNLOAD) {
+    throw new Error(
+      `Too many files (${targetFiles.length}) at path. Maximum is ${MAX_FILES_TO_DOWNLOAD}.`
+    );
+  }
+
+  // Resolve destDir once for security checks
+  const resolvedDestDir = resolve(destDir);
+
   // Download each file
   for (const file of targetFiles) {
-    const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${file.path}`;
+    // Calculate relative path from subPath
+    const relativePath = subPath ? file.path.slice(prefix.length) : file.path;
+
+    // SECURITY: Validate relative path to prevent directory traversal
+    if (!isValidPath(relativePath)) {
+      throw new Error(`Invalid file path in repository: ${file.path}`);
+    }
+
+    const destPath = resolve(destDir, relativePath);
+
+    // SECURITY: Double-check that resolved path is within destDir
+    if (!destPath.startsWith(resolvedDestDir + '/') && destPath !== resolvedDestDir) {
+      throw new Error(`Path traversal detected: ${file.path}`);
+    }
+
+    // URL-encode file path for the raw URL
+    const encodedFilePath = file.path
+      .split('/')
+      .map((segment) => encodeURIComponent(segment))
+      .join('/');
+    const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${encodedBranch}/${encodedFilePath}`;
     const fileRes = await fetchWithRetry(rawUrl, { headers }, 2);
 
     if (!fileRes.ok) {
       throw new Error(`Failed to download ${file.path}: ${fileRes.status}`);
     }
 
-    const content = await fileRes.text();
-
-    // Calculate relative path from subPath
-    const relativePath = subPath ? file.path.slice(prefix.length) : file.path;
-    const destPath = join(destDir, relativePath);
+    // Use arrayBuffer for binary-safe file handling
+    const buffer = Buffer.from(await fileRes.arrayBuffer());
 
     // Create parent directories
     mkdirSync(dirname(destPath), { recursive: true, mode: 0o700 });
-    writeFileSync(destPath, content, { mode: 0o600 });
+    writeFileSync(destPath, buffer, { mode: 0o600 });
   }
 }
 
@@ -234,18 +276,15 @@ export async function installSkill(
     }
 
     // Try degit first, fall back to GitHub API if it fails
-    let downloadSucceeded = false;
     try {
       const emitter = degit(degitPath, { cache: false, force: true });
       await emitter.clone(tmpDir);
-      downloadSucceeded = true;
     } catch (degitErr) {
       // Degit can fail on large repos - try GitHub API fallback
       const degitErrMsg = degitErr instanceof Error ? degitErr.message : String(degitErr);
       if (degitErrMsg.includes('could not find commit hash') && branch) {
         // Use GitHub API as fallback
         await downloadViaGitHubApi(owner, repo, downloadPath, branch, tmpDir);
-        downloadSucceeded = true;
       } else {
         // Re-throw if it's not a recoverable degit error
         throw degitErr;
