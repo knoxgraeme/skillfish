@@ -35,6 +35,18 @@ export interface InstallOptions {
   branch?: string;
 }
 
+/**
+ * Validates a branch name for safe use in degit paths.
+ * Git branch names can contain alphanumerics, dots, hyphens, underscores, and slashes.
+ * We explicitly reject '#' which is used as a delimiter in degit syntax.
+ */
+function isValidBranchName(branch: string): boolean {
+  if (!branch || branch.length > 255) return false;
+  // Allow alphanumerics, dots, hyphens, underscores, and slashes (for feature branches)
+  // Reject anything else, especially '#' which would break degit parsing
+  return /^[\w./-]+$/.test(branch) && !branch.includes('#');
+}
+
 export interface CopyResult {
   warnings: string[];
 }
@@ -144,7 +156,11 @@ export async function installSkill(
     let degitPath = downloadPath ? `${owner}/${repo}/${downloadPath}` : `${owner}/${repo}`;
 
     // Append branch if specified (critical for repos with non-standard default branches like 'canary')
+    // Validate branch name to prevent injection attacks via malformed branch names
     if (branch) {
+      if (!isValidBranchName(branch)) {
+        throw new Error(`Invalid branch name: ${branch}`);
+      }
       degitPath = `${degitPath}#${branch}`;
     }
 
