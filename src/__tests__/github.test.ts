@@ -138,21 +138,19 @@ describe('findAllSkillMdFiles', () => {
     await expect(findAllSkillMdFiles('owner', 'repo')).rejects.toThrow(RateLimitError);
   });
 
-  it('tries fallback branches when default branch fetch returns server error', async () => {
+  it('works with non-standard default branches like canary', async () => {
+    const repoResponse = { default_branch: 'canary' };
     const treeResponse = {
       tree: [{ path: 'SKILL.md', type: 'blob' }],
     };
-    // When repo metadata returns 500, we fall back to trying main/master branches directly
     mockFetch
-      .mockResolvedValueOnce(new Response('server error', { status: 500 })) // repo metadata fails with 500
-      .mockResolvedValueOnce(new Response('server error', { status: 500 })) // retry 1
-      .mockResolvedValueOnce(new Response('server error', { status: 500 })) // retry 2
-      .mockResolvedValueOnce(new Response(JSON.stringify(treeResponse), { status: 200 })); // main tree succeeds
+      .mockResolvedValueOnce(new Response(JSON.stringify(repoResponse), { status: 200 })) // repo metadata
+      .mockResolvedValueOnce(new Response(JSON.stringify(treeResponse), { status: 200 })); // tree
 
     const result = await findAllSkillMdFiles('owner', 'repo');
 
     expect(result.paths).toEqual(['SKILL.md']);
-    expect(result.branch).toBe('main');
+    expect(result.branch).toBe('canary');
   });
 
   it('throws RepoNotFoundError when repo does not exist', async () => {

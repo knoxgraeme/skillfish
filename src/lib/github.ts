@@ -8,7 +8,6 @@ import { isGitTreeResponse, extractSkillPaths, sleep } from '../utils.js';
 const API_TIMEOUT_MS = 10000;
 const MAX_RETRIES = 3;
 const RETRY_DELAYS_MS = [1000, 2000, 4000]; // Exponential backoff
-const FALLBACK_BRANCHES = ['main', 'master'] as const;
 export const SKILL_FILENAME = 'SKILL.md';
 
 // === Types ===
@@ -180,56 +179,28 @@ export async function fetchWithRetry(
 /**
  * Fetch raw SKILL.md content from GitHub.
  * Uses raw.githubusercontent.com which is not rate-limited like the API.
- *
- * @param owner - Repository owner
- * @param repo - Repository name
- * @param path - Path to file within repository
- * @param branch - Specific branch to fetch from (if not provided, tries fallback branches)
  */
 export async function fetchSkillMdContent(
   owner: string,
   repo: string,
   path: string,
-  branch?: string
+  branch: string
 ): Promise<string | null> {
   const headers = { 'User-Agent': 'skillfish' };
+  const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
 
-  // If branch is specified, try only that branch
-  if (branch) {
-    const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
-    try {
-      const res = await fetchWithRetry(url, { headers }, 2);
-      if (!res.ok) return null;
-      return res.text();
-    } catch {
-      return null;
-    }
+  try {
+    const res = await fetchWithRetry(url, { headers }, 2);
+    if (!res.ok) return null;
+    return res.text();
+  } catch {
+    return null;
   }
-
-  // Try fallback branches in parallel
-  const results = await Promise.allSettled(
-    FALLBACK_BRANCHES.map(async (b) => {
-      const url = `https://raw.githubusercontent.com/${owner}/${repo}/${b}/${path}`;
-      const res = await fetchWithRetry(url, { headers }, 2);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.text();
-    })
-  );
-
-  // Return first successful result
-  for (const result of results) {
-    if (result.status === 'fulfilled') {
-      return result.value;
-    }
-  }
-
-  return null;
 }
 
 /**
  * Find all SKILL.md files in a GitHub repository.
- * First fetches the actual default branch, then searches for skills on that branch.
- * Falls back to main/master if default branch detection fails.
+ * Fetches the default branch, then searches for skills on that branch.
  *
  * @returns SkillDiscoveryResult with paths and the branch they were found on
  * @throws {RateLimitError} When GitHub API rate limit is exceeded
@@ -240,80 +211,39 @@ export async function fetchSkillMdContent(
 export async function findAllSkillMdFiles(owner: string, repo: string): Promise<SkillDiscoveryResult> {
   const headers: Record<string, string> = { 'User-Agent': 'skillfish' };
 
-  // First, try to get the actual default branch from repo metadata
-  let branchesToTry: string[];
-  try {
-    const defaultBranch = await fetchDefaultBranch(owner, repo);
-    // Put default branch first, then fallbacks (in case default branch tree fetch fails)
-    branchesToTry = [defaultBranch, ...FALLBACK_BRANCHES.filter(b => b !== defaultBranch)];
-  } catch (err) {
-    // If repo doesn't exist or rate limited, throw immediately
-    if (err instanceof RepoNotFoundError || err instanceof RateLimitError) {
-      throw err;
-    }
-    // For other errors (network issues, etc.), fall back to trying common branches
-    branchesToTry = [...FALLBACK_BRANCHES];
-  }
+  // Get the default branch
+  const branch = await fetchDefaultBranch(owner, repo);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
   try {
-    // Try each branch sequentially to conserve rate limit
-    for (const branch of branchesToTry) {
-      const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
+    const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
+    const res = await fetchWithRetry(url, { headers, signal: controller.signal });
 
-      try {
-        const res = await fetchWithRetry(url, { headers, signal: controller.signal });
-
-        // Check for rate limiting
-        if (res.status === 403) {
-          const remaining = res.headers.get('X-RateLimit-Remaining');
-          if (remaining === '0') {
-            const resetHeader = res.headers.get('X-RateLimit-Reset');
-            const resetTime = resetHeader ? new Date(parseInt(resetHeader) * 1000) : undefined;
-            throw new RateLimitError(resetTime);
-          }
-        }
-
-        // 404 means branch doesn't exist, try next
-        if (res.status === 404) {
-          continue;
-        }
-
-        if (!res.ok) {
-          continue;
-        }
-
-        const rawData: unknown = await res.json();
-
-        if (!isGitTreeResponse(rawData)) {
-          throw new GitHubApiError('Unexpected response format from GitHub API.');
-        }
-
-        const paths = extractSkillPaths(rawData, SKILL_FILENAME);
-        return { paths, branch };
-      } catch (err) {
-        // Re-throw typed errors
-        if (
-          err instanceof RateLimitError ||
-          err instanceof GitHubApiError
-        ) {
-          throw err;
-        }
-        // If this is the last branch, let the error propagate
-        if (branch === branchesToTry[branchesToTry.length - 1]) {
-          throw err;
-        }
-        // Otherwise try next branch
-        continue;
+    // Check for rate limiting
+    if (res.status === 403) {
+      const remaining = res.headers.get('X-RateLimit-Remaining');
+      if (remaining === '0') {
+        const resetHeader = res.headers.get('X-RateLimit-Reset');
+        const resetTime = resetHeader ? new Date(parseInt(resetHeader) * 1000) : undefined;
+        throw new RateLimitError(resetTime);
       }
     }
 
-    // No branch found
-    throw new RepoNotFoundError(owner, repo);
+    if (!res.ok) {
+      throw new GitHubApiError(`GitHub API returned status ${res.status}`);
+    }
+
+    const rawData: unknown = await res.json();
+
+    if (!isGitTreeResponse(rawData)) {
+      throw new GitHubApiError('Unexpected response format from GitHub API.');
+    }
+
+    const paths = extractSkillPaths(rawData, SKILL_FILENAME);
+    return { paths, branch };
   } catch (err: unknown) {
-    // Re-throw typed errors
     if (
       err instanceof RateLimitError ||
       err instanceof RepoNotFoundError ||
