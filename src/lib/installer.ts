@@ -10,15 +10,13 @@ import {
   rmSync,
   lstatSync,
   readdirSync,
-  writeFileSync,
 } from 'fs';
 import { homedir } from 'os';
-import { join, dirname, resolve } from 'path';
+import { join } from 'path';
 import { randomUUID } from 'crypto';
-import degit from 'degit';
+import { downloadTemplate } from 'giget';
 import type { Agent } from './agents.js';
-import { SKILL_FILENAME, fetchWithRetry } from './github.js';
-import { isValidPath, isGitTreeResponse } from '../utils.js';
+import { SKILL_FILENAME } from './github.js';
 
 // === Types ===
 
@@ -33,19 +31,19 @@ export interface InstallResult {
 export interface InstallOptions {
   force: boolean;
   baseDir: string;
-  /** Branch to clone from. If not specified, degit will use default branch detection. */
+  /** Branch to clone from. If not specified, giget will use the repository's default branch. */
   branch?: string;
 }
 
 /**
- * Validates a branch name for safe use in degit paths.
+ * Validates a branch name for safe use in giget source strings.
  * Git branch names can contain alphanumerics, dots, hyphens, underscores, and slashes.
- * We explicitly reject '#' which is used as a delimiter in degit syntax.
+ * We explicitly reject '#' which is used as a delimiter in giget syntax.
  */
 function isValidBranchName(branch: string): boolean {
   if (!branch || branch.length > 255) return false;
   // Allow alphanumerics, dots, hyphens, underscores, and slashes (for feature branches)
-  // Reject anything else, especially '#' which would break degit parsing
+  // Reject anything else, especially '#' which would break giget parsing
   return /^[\w./-]+$/.test(branch) && !branch.includes('#');
 }
 
@@ -66,115 +64,6 @@ export class SkillMdNotFoundError extends Error {
 }
 
 // === Functions ===
-
-/**
- * Maximum number of files to download via GitHub API fallback.
- * Prevents excessive API calls for unexpectedly large directories.
- */
-const MAX_FILES_TO_DOWNLOAD = 100;
-
-/**
- * Fallback download using GitHub API when degit fails.
- * Uses the tree API to list files, then downloads each via raw.githubusercontent.com.
- * This is more reliable for large repos where degit's ref resolution can fail.
- *
- * SECURITY: Validates all file paths to prevent directory traversal attacks.
- */
-async function downloadViaGitHubApi(
-  owner: string,
-  repo: string,
-  subPath: string,
-  branch: string,
-  destDir: string
-): Promise<void> {
-  const headers = { 'User-Agent': 'skillfish' };
-
-  // URL-encode branch name to handle special characters safely
-  const encodedBranch = encodeURIComponent(branch);
-
-  // Get the tree for the specific path
-  const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/${encodedBranch}?recursive=1`;
-  const treeRes = await fetchWithRetry(treeUrl, { headers });
-
-  if (!treeRes.ok) {
-    throw new Error(`Failed to fetch repository tree: ${treeRes.status}`);
-  }
-
-  const treeData: unknown = await treeRes.json();
-
-  // Validate response structure at runtime
-  if (!isGitTreeResponse(treeData)) {
-    throw new Error('Invalid tree response from GitHub API');
-  }
-
-  if (!treeData.tree || treeData.tree.length === 0) {
-    throw new Error('Empty tree response from GitHub API');
-  }
-
-  // Warn if tree is truncated (very large repos)
-  if (treeData.truncated) {
-    // Continue anyway - we'll get what we can
-  }
-
-  // Filter to files within our target path
-  const prefix = subPath ? `${subPath}/` : '';
-  const targetFiles = treeData.tree.filter(
-    (item) =>
-      item.type === 'blob' &&
-      (subPath === '' || item.path === subPath || item.path.startsWith(prefix))
-  );
-
-  if (targetFiles.length === 0) {
-    throw new Error(`No files found at path: ${subPath || '(root)'}`);
-  }
-
-  // Limit file count to prevent excessive downloads
-  if (targetFiles.length > MAX_FILES_TO_DOWNLOAD) {
-    throw new Error(
-      `Too many files (${targetFiles.length}) at path. Maximum is ${MAX_FILES_TO_DOWNLOAD}.`
-    );
-  }
-
-  // Resolve destDir once for security checks
-  const resolvedDestDir = resolve(destDir);
-
-  // Download each file
-  for (const file of targetFiles) {
-    // Calculate relative path from subPath
-    const relativePath = subPath ? file.path.slice(prefix.length) : file.path;
-
-    // SECURITY: Validate relative path to prevent directory traversal
-    if (!isValidPath(relativePath)) {
-      throw new Error(`Invalid file path in repository: ${file.path}`);
-    }
-
-    const destPath = resolve(destDir, relativePath);
-
-    // SECURITY: Double-check that resolved path is within destDir
-    if (!destPath.startsWith(resolvedDestDir + '/') && destPath !== resolvedDestDir) {
-      throw new Error(`Path traversal detected: ${file.path}`);
-    }
-
-    // URL-encode file path for the raw URL
-    const encodedFilePath = file.path
-      .split('/')
-      .map((segment) => encodeURIComponent(segment))
-      .join('/');
-    const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${encodedBranch}/${encodedFilePath}`;
-    const fileRes = await fetchWithRetry(rawUrl, { headers }, 2);
-
-    if (!fileRes.ok) {
-      throw new Error(`Failed to download ${file.path}: ${fileRes.status}`);
-    }
-
-    // Use arrayBuffer for binary-safe file handling
-    const buffer = Buffer.from(await fileRes.arrayBuffer());
-
-    // Create parent directories
-    mkdirSync(dirname(destPath), { recursive: true, mode: 0o700 });
-    writeFileSync(destPath, buffer, { mode: 0o600 });
-  }
-}
 
 /**
  * Recursively copies a directory while skipping symlinks for security.
@@ -261,10 +150,12 @@ export async function installSkill(
   mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
 
   try {
-    // Download skill
-    // Build degit path: owner/repo[/subpath][#branch]
+    // Download skill using giget (tarball-based, works reliably on all repo sizes)
+    // Build giget source: github:owner/repo[/subpath][#branch]
     const downloadPath = skillPath === SKILL_FILENAME ? '' : skillPath;
-    let degitPath = downloadPath ? `${owner}/${repo}/${downloadPath}` : `${owner}/${repo}`;
+    let source = downloadPath
+      ? `github:${owner}/${repo}/${downloadPath}`
+      : `github:${owner}/${repo}`;
 
     // Append branch if specified (critical for repos with non-standard default branches like 'canary')
     // Validate branch name to prevent injection attacks via malformed branch names
@@ -272,24 +163,13 @@ export async function installSkill(
       if (!isValidBranchName(branch)) {
         throw new Error(`Invalid branch name: ${branch}`);
       }
-      degitPath = `${degitPath}#${branch}`;
+      source = `${source}#${branch}`;
     }
 
-    // Try degit first, fall back to GitHub API if it fails
-    try {
-      const emitter = degit(degitPath, { cache: false, force: true });
-      await emitter.clone(tmpDir);
-    } catch (degitErr) {
-      // Degit can fail on large repos - try GitHub API fallback
-      const degitErrMsg = degitErr instanceof Error ? degitErr.message : String(degitErr);
-      if (degitErrMsg.includes('could not find commit hash') && branch) {
-        // Use GitHub API as fallback
-        await downloadViaGitHubApi(owner, repo, downloadPath, branch, tmpDir);
-      } else {
-        // Re-throw if it's not a recoverable degit error
-        throw degitErr;
-      }
-    }
+    await downloadTemplate(source, {
+      dir: tmpDir,
+      forceClean: true,
+    });
 
     // Validate download
     const skillMdPath = join(tmpDir, SKILL_FILENAME);
@@ -332,12 +212,8 @@ export async function installSkill(
       result.failureReason = err.message;
     } else {
       const errMsg = err instanceof Error ? err.message : String(err);
-      // Provide more helpful error messages for common degit failures
-      // Match "could not find commit hash for HEAD" or "could not find commit hash for <branch>"
-      if (errMsg.includes('could not find commit hash')) {
-        const branchInfo = branch ? ` (branch: ${branch})` : '';
-        result.failureReason = `Could not clone repository. The branch or path may not exist, or there may be a network issue. Tried: ${owner}/${repo}${skillPath !== SKILL_FILENAME ? `/${skillPath}` : ''}${branchInfo}`;
-      } else if (errMsg.includes('404')) {
+      // Provide more helpful error messages for common failures
+      if (errMsg.includes('404') || errMsg.includes('Not Found')) {
         result.failureReason = `Repository or path not found: ${owner}/${repo}${skillPath !== SKILL_FILENAME ? `/${skillPath}` : ''}`;
       } else {
         result.failureReason = errMsg;

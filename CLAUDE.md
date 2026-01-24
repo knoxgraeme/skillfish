@@ -35,7 +35,7 @@ npx vitest run src/__tests__/utils.test.ts  # Run a single test file
 
 - `src/lib/agents.ts` - Agent detection and configuration (AGENT_CONFIGS array defines all supported agents with their detection paths and skill directories)
 - `src/lib/github.ts` - GitHub API functions (tree fetching, rate limit handling, retry logic with exponential backoff)
-- `src/lib/installer.ts` - Skill installation logic (downloads via degit, validates SKILL.md exists, copies to agent directories)
+- `src/lib/installer.ts` - Skill installation logic (downloads via giget tarball, validates SKILL.md exists, copies to agent directories)
 - `src/lib/constants.ts` - Exit codes and error codes for structured output
 
 ### Utilities

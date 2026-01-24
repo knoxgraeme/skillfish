@@ -57,7 +57,7 @@
   "dependencies": {
     "@clack/prompts": "^0.11.0",
     "commander": "^14.0.2",
-    "degit": "^2.8.4",
+    "giget": "^3.1.1",
     "picocolors": "^1.1.1"
   },
   "devDependencies": {

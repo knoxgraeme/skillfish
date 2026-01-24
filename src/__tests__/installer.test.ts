@@ -148,24 +148,24 @@ describe('CLI input validation', () => {
   });
 });
 
-// Mock degit for installSkill tests
-vi.mock('degit', () => {
+// Mock giget for installSkill tests
+vi.mock('giget', () => {
   return {
-    default: vi.fn(),
+    downloadTemplate: vi.fn(),
   };
 });
 
 describe('installSkill', () => {
   let tempDir: string;
-  let mockDegit: ReturnType<typeof vi.fn>;
+  let mockDownloadTemplate: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'skillfish-install-test-'));
 
-    // Get the mocked degit
-    const degitModule = await import('degit');
-    mockDegit = degitModule.default as ReturnType<typeof vi.fn>;
-    mockDegit.mockReset();
+    // Get the mocked giget
+    const gigetModule = await import('giget');
+    mockDownloadTemplate = gigetModule.downloadTemplate as ReturnType<typeof vi.fn>;
+    mockDownloadTemplate.mockReset();
   });
 
   afterEach(() => {
@@ -180,13 +180,12 @@ describe('installSkill', () => {
   });
 
   it('installs skill to multiple agents', async () => {
-    // Mock degit to simulate successful download with SKILL.md
-    mockDegit.mockReturnValue({
-      clone: vi.fn().mockImplementation(async (destDir: string) => {
-        mkdirSync(destDir, { recursive: true });
-        writeFileSync(join(destDir, 'SKILL.md'), '# Test Skill');
-        writeFileSync(join(destDir, 'README.md'), '# README');
-      }),
+    // Mock giget to simulate successful download with SKILL.md
+    mockDownloadTemplate.mockImplementation(async (_source: string, options: { dir: string }) => {
+      mkdirSync(options.dir, { recursive: true });
+      writeFileSync(join(options.dir, 'SKILL.md'), '# Test Skill');
+      writeFileSync(join(options.dir, 'README.md'), '# README');
+      return { dir: options.dir, source: _source, url: 'https://github.com/owner/repo' };
     });
 
     const agents = [
@@ -214,11 +213,10 @@ describe('installSkill', () => {
     mkdirSync(existingDir, { recursive: true });
     writeFileSync(join(existingDir, 'SKILL.md'), '# Existing');
 
-    mockDegit.mockReturnValue({
-      clone: vi.fn().mockImplementation(async (destDir: string) => {
-        mkdirSync(destDir, { recursive: true });
-        writeFileSync(join(destDir, 'SKILL.md'), '# New Skill');
-      }),
+    mockDownloadTemplate.mockImplementation(async (_source: string, options: { dir: string }) => {
+      mkdirSync(options.dir, { recursive: true });
+      writeFileSync(join(options.dir, 'SKILL.md'), '# New Skill');
+      return { dir: options.dir, source: _source, url: 'https://github.com/owner/repo' };
     });
 
     const agents = [createMockAgent('Agent1', '.agent1/skills')];
@@ -243,11 +241,10 @@ describe('installSkill', () => {
     mkdirSync(existingDir, { recursive: true });
     writeFileSync(join(existingDir, 'SKILL.md'), '# Existing');
 
-    mockDegit.mockReturnValue({
-      clone: vi.fn().mockImplementation(async (destDir: string) => {
-        mkdirSync(destDir, { recursive: true });
-        writeFileSync(join(destDir, 'SKILL.md'), '# New Skill');
-      }),
+    mockDownloadTemplate.mockImplementation(async (_source: string, options: { dir: string }) => {
+      mkdirSync(options.dir, { recursive: true });
+      writeFileSync(join(options.dir, 'SKILL.md'), '# New Skill');
+      return { dir: options.dir, source: _source, url: 'https://github.com/owner/repo' };
     });
 
     const agents = [createMockAgent('Agent1', '.agent1/skills')];
@@ -266,12 +263,11 @@ describe('installSkill', () => {
   });
 
   it('fails when SKILL.md not found in download', async () => {
-    mockDegit.mockReturnValue({
-      clone: vi.fn().mockImplementation(async (destDir: string) => {
-        // Download succeeds but no SKILL.md
-        mkdirSync(destDir, { recursive: true });
-        writeFileSync(join(destDir, 'README.md'), '# No skill here');
-      }),
+    mockDownloadTemplate.mockImplementation(async (_source: string, options: { dir: string }) => {
+      // Download succeeds but no SKILL.md
+      mkdirSync(options.dir, { recursive: true });
+      writeFileSync(join(options.dir, 'README.md'), '# No skill here');
+      return { dir: options.dir, source: _source, url: 'https://github.com/owner/repo' };
     });
 
     const agents = [createMockAgent('Agent1', '.agent1/skills')];
@@ -287,9 +283,7 @@ describe('installSkill', () => {
   });
 
   it('cleans up temp directory on failure', async () => {
-    mockDegit.mockReturnValue({
-      clone: vi.fn().mockRejectedValue(new Error('Network error')),
-    });
+    mockDownloadTemplate.mockRejectedValue(new Error('Network error'));
 
     const agents = [createMockAgent('Agent1', '.agent1/skills')];
 
@@ -306,10 +300,8 @@ describe('installSkill', () => {
     // but the function should have called rmSync in the finally block
   });
 
-  it('handles degit errors gracefully', async () => {
-    mockDegit.mockReturnValue({
-      clone: vi.fn().mockRejectedValue(new Error('could not find commit hash')),
-    });
+  it('handles 404 errors gracefully', async () => {
+    mockDownloadTemplate.mockRejectedValue(new Error('404 Not Found'));
 
     const agents = [createMockAgent('Agent1', '.agent1/skills')];
 
@@ -319,6 +311,6 @@ describe('installSkill', () => {
     });
 
     expect(result.failed).toBe(true);
-    expect(result.failureReason).toContain('Could not clone repository');
+    expect(result.failureReason).toContain('Repository or path not found');
   });
 });
