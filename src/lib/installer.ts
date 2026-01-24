@@ -209,8 +209,10 @@ export async function installSkill(
     } else {
       const errMsg = err instanceof Error ? err.message : String(err);
       // Provide more helpful error messages for common degit failures
-      if (errMsg.includes('could not find commit hash for HEAD')) {
-        result.failureReason = `Could not clone repository. The branch or path may not exist, or there may be a network issue. Tried: ${owner}/${repo}${skillPath !== SKILL_FILENAME ? `/${skillPath}` : ''}`;
+      // Match "could not find commit hash for HEAD" or "could not find commit hash for <branch>"
+      if (errMsg.includes('could not find commit hash')) {
+        const branchInfo = branch ? ` (branch: ${branch})` : '';
+        result.failureReason = `Could not clone repository. The branch or path may not exist, or there may be a network issue. Tried: ${owner}/${repo}${skillPath !== SKILL_FILENAME ? `/${skillPath}` : ''}${branchInfo}`;
       } else if (errMsg.includes('404')) {
         result.failureReason = `Repository or path not found: ${owner}/${repo}${skillPath !== SKILL_FILENAME ? `/${skillPath}` : ''}`;
       } else {

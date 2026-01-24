@@ -319,6 +319,6 @@ describe('installSkill', () => {
     });
 
     expect(result.failed).toBe(true);
-    expect(result.failureReason).toContain('could not find commit hash');
+    expect(result.failureReason).toContain('Could not clone repository');
   });
 });

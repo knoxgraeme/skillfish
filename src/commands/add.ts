@@ -24,6 +24,7 @@ import { getDetectedAgents, type Agent, AGENT_CONFIGS } from '../lib/agents.js';
 import {
   findAllSkillMdFiles,
   fetchSkillMdContent,
+  fetchDefaultBranch,
   SKILL_FILENAME,
   RateLimitError,
   RepoNotFoundError,
@@ -174,9 +175,19 @@ Examples:
     }
 
     // 1. Discover or select skills
-    const discoveryResult = explicitPath
-      ? { paths: [explicitPath], branch: undefined }
-      : await discoverSkillPaths(owner, repo, installAll, jsonMode, jsonOutput, skillNameArg);
+    let discoveryResult: { paths: string[]; branch: string | undefined } | null;
+    if (explicitPath) {
+      // For explicit paths, we still need to fetch the default branch for degit
+      try {
+        const branch = await fetchDefaultBranch(owner, repo);
+        discoveryResult = { paths: [explicitPath], branch };
+      } catch (err) {
+        // If we can't fetch the branch, let degit try its own detection
+        discoveryResult = { paths: [explicitPath], branch: undefined };
+      }
+    } else {
+      discoveryResult = await discoverSkillPaths(owner, repo, installAll, jsonMode, jsonOutput, skillNameArg);
+    }
 
     if (!discoveryResult || discoveryResult.paths.length === 0) {
       if (jsonMode) {
