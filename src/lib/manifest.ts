@@ -5,11 +5,19 @@
 
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { isValidName } from './constants.js';
+import { isValidPath } from '../utils.js';
 
 // === Constants ===
 
 export const MANIFEST_FILENAME = '.skillfish.json';
 export const MANIFEST_VERSION = 1;
+
+/** Git SHA format: 40 hexadecimal characters */
+const SHA_PATTERN = /^[a-f0-9]{40}$/;
+
+/** Git branch name pattern (alphanumerics, dots, hyphens, underscores, slashes) */
+const BRANCH_PATTERN = /^[\w./-]+$/;
 
 // === Types ===
 
@@ -86,7 +94,9 @@ export function hasManifest(skillDir: string): boolean {
 }
 
 /**
- * Type guard to validate manifest structure.
+ * Type guard to validate manifest structure and content.
+ * Validates both field types and content to prevent tampered manifests
+ * from causing unintended API requests or file operations.
  */
 function isValidManifest(data: unknown): data is SkillManifest {
   if (typeof data !== 'object' || data === null) {
@@ -95,12 +105,40 @@ function isValidManifest(data: unknown): data is SkillManifest {
 
   const obj = data as Record<string, unknown>;
 
-  return (
-    obj.version === MANIFEST_VERSION &&
-    typeof obj.owner === 'string' &&
-    typeof obj.repo === 'string' &&
-    typeof obj.path === 'string' &&
-    typeof obj.branch === 'string' &&
-    typeof obj.sha === 'string'
-  );
+  // Check types first
+  if (
+    obj.version !== MANIFEST_VERSION ||
+    typeof obj.owner !== 'string' ||
+    typeof obj.repo !== 'string' ||
+    typeof obj.path !== 'string' ||
+    typeof obj.branch !== 'string' ||
+    typeof obj.sha !== 'string'
+  ) {
+    return false;
+  }
+
+  // Validate content to prevent tampered manifests
+  const { owner, repo, path, branch, sha } = obj;
+
+  // Owner and repo must be valid GitHub names
+  if (!isValidName(owner) || !isValidName(repo)) {
+    return false;
+  }
+
+  // Path must be safe (no traversal) - "." is valid for root
+  if (path !== '.' && !isValidPath(path)) {
+    return false;
+  }
+
+  // Branch must match git branch pattern
+  if (!BRANCH_PATTERN.test(branch) || branch.length > 255) {
+    return false;
+  }
+
+  // SHA must be valid git SHA format (40 hex chars)
+  if (!SHA_PATTERN.test(sha)) {
+    return false;
+  }
+
+  return true;
 }

@@ -372,7 +372,7 @@ async function checkForUpdates(skills: TrackedSkill[]): Promise<{
           `${skill.skill}: Repository not found (${skill.manifest.owner}/${skill.manifest.repo})`,
         );
       } else if (err instanceof NetworkError) {
-        errors.push(`${skill.skill}: Network error`);
+        errors.push(`${skill.skill}: ${err.message}`);
       } else if (err instanceof GitHubApiError) {
         errors.push(`${skill.skill}: ${err.message}`);
       } else {

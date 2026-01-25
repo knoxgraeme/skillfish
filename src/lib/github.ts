@@ -249,8 +249,8 @@ export async function fetchTreeSha(owner: string, repo: string, branch: string):
     }
 
     const data = (await res.json()) as { sha?: string };
-    if (typeof data.sha !== 'string') {
-      throw new GitHubApiError('Tree response missing sha field');
+    if (typeof data.sha !== 'string' || !/^[a-f0-9]{40}$/.test(data.sha)) {
+      throw new GitHubApiError('Invalid or missing sha field in tree response');
     }
 
     return data.sha;
