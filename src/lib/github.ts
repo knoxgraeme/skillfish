@@ -13,11 +13,13 @@ export const SKILL_FILENAME = 'SKILL.md';
 // === Types ===
 
 /**
- * Result of skill discovery including branch information.
+ * Result of skill discovery including branch and SHA information.
  */
 export interface SkillDiscoveryResult {
   paths: string[];
   branch: string;
+  /** Tree SHA from git/trees response - changes when any file in repo changes */
+  sha: string;
 }
 
 // === Error Types ===
@@ -218,6 +220,48 @@ export async function fetchSkillMdContent(
 }
 
 /**
+ * Fetch the tree SHA for a repository branch.
+ * Used for update checks - compares stored SHA with current SHA.
+ *
+ * @throws {RepoNotFoundError} When the repository is not found
+ * @throws {RateLimitError} When GitHub API rate limit is exceeded
+ * @throws {NetworkError} On network errors
+ * @throws {GitHubApiError} When the API response format is unexpected
+ */
+export async function fetchTreeSha(owner: string, repo: string, branch: string): Promise<string> {
+  const headers: Record<string, string> = { 'User-Agent': 'skillfish' };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
+  try {
+    const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}`;
+    const res = await fetchWithRetry(url, { headers, signal: controller.signal });
+
+    checkRateLimit(res);
+
+    if (res.status === 404) {
+      throw new RepoNotFoundError(owner, repo);
+    }
+
+    if (!res.ok) {
+      throw new GitHubApiError(`GitHub API returned status ${res.status}`);
+    }
+
+    const data = (await res.json()) as { sha?: string };
+    if (typeof data.sha !== 'string') {
+      throw new GitHubApiError('Tree response missing sha field');
+    }
+
+    return data.sha;
+  } catch (err: unknown) {
+    wrapApiError(err);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
  * Find all SKILL.md files in a GitHub repository.
  * Fetches the default branch, then searches for skills on that branch.
  *
@@ -256,7 +300,8 @@ export async function findAllSkillMdFiles(
     }
 
     const paths = extractSkillPaths(rawData, SKILL_FILENAME);
-    return { paths, branch };
+    const sha = rawData.sha ?? '';
+    return { paths, branch, sha };
   } catch (err: unknown) {
     wrapApiError(err);
   } finally {

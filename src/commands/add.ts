@@ -25,6 +25,7 @@ import {
   findAllSkillMdFiles,
   fetchSkillMdContent,
   fetchDefaultBranch,
+  fetchTreeSha,
   SKILL_FILENAME,
   RateLimitError,
   RepoNotFoundError,
@@ -184,15 +185,27 @@ Examples:
       }
 
       // 1. Discover or select skills
-      let discoveryResult: { paths: string[]; branch: string | undefined } | null;
+      let discoveryResult: {
+        paths: string[];
+        branch: string | undefined;
+        sha: string | undefined;
+      } | null;
       if (explicitPath) {
-        // For explicit paths, we still need to fetch the default branch for degit
+        // For explicit paths, we still need to fetch the default branch and SHA for tracking
         try {
           const branch = await fetchDefaultBranch(owner, repo);
-          discoveryResult = { paths: [explicitPath], branch };
+          // Fetch tree SHA for manifest tracking
+          let sha: string | undefined;
+          try {
+            sha = await fetchTreeSha(owner, repo, branch);
+          } catch {
+            // If we can't fetch SHA, install without manifest tracking
+            sha = undefined;
+          }
+          discoveryResult = { paths: [explicitPath], branch, sha };
         } catch {
           // If we can't fetch the branch, let degit try its own detection
-          discoveryResult = { paths: [explicitPath], branch: undefined };
+          discoveryResult = { paths: [explicitPath], branch: undefined, sha: undefined };
         }
       } else {
         discoveryResult = await discoverSkillPaths(
@@ -212,7 +225,7 @@ Examples:
         process.exit(EXIT_CODES.NOT_FOUND);
       }
 
-      const { paths: skillPaths, branch: discoveredBranch } = discoveryResult;
+      const { paths: skillPaths, branch: discoveredBranch, sha: discoveredSha } = discoveryResult;
 
       // 2. Determine install location (global vs project)
       const baseDir = await selectInstallLocation(projectFlag, globalFlag, jsonMode);
@@ -283,6 +296,7 @@ Examples:
           force,
           baseDir,
           branch: discoveredBranch,
+          sha: discoveredSha,
         });
 
         if (spinner) {
@@ -478,7 +492,7 @@ async function discoverSkillPaths(
   jsonMode: boolean,
   jsonOutput: AddJsonOutput,
   targetSkillName?: string,
-): Promise<{ paths: string[]; branch: string } | null> {
+): Promise<{ paths: string[]; branch: string; sha: string } | null> {
   let skillDiscovery: SkillDiscoveryResult;
 
   try {
@@ -512,7 +526,7 @@ async function discoverSkillPaths(
     process.exit(exitCode);
   }
 
-  const { paths: skillPaths, branch } = skillDiscovery;
+  const { paths: skillPaths, branch, sha } = skillDiscovery;
 
   if (skillPaths.length === 0) {
     const errorMsg = `No ${SKILL_FILENAME} found in repository`;
@@ -588,7 +602,7 @@ async function discoverSkillPaths(
       if (!jsonMode) {
         p.log.info(`${pc.bold(displayName)}${desc ? pc.dim(` - ${desc}`) : ''}`);
       }
-      return { paths: [matchedSkill.dir], branch };
+      return { paths: [matchedSkill.dir], branch, sha };
     }
 
     // Skill not found - show available skills
@@ -615,7 +629,7 @@ async function discoverSkillPaths(
     if (!jsonMode) {
       p.log.info(`${pc.bold(displayName)}${desc ? pc.dim(` - ${desc}`) : ''}`);
     }
-    return { paths: [skill.dir], branch };
+    return { paths: [skill.dir], branch, sha };
   }
 
   // Build options for selection with frontmatter metadata
@@ -633,7 +647,7 @@ async function discoverSkillPaths(
       if (!jsonMode) {
         console.log(`Installing all ${skills.length} skills`);
       }
-      return { paths: skills.map((s) => s.dir), branch };
+      return { paths: skills.map((s) => s.dir), branch, sha };
     }
 
     // Otherwise, list skills and exit with guidance
@@ -666,7 +680,7 @@ async function discoverSkillPaths(
     process.exit(EXIT_CODES.SUCCESS);
   }
 
-  return { paths: selected, branch };
+  return { paths: selected, branch, sha };
 }
 
 /**

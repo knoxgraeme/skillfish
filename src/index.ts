@@ -12,6 +12,7 @@ import { dirname, join } from 'path';
 import { addCommand } from './commands/add.js';
 import { listCommand } from './commands/list.js';
 import { removeCommand } from './commands/remove.js';
+import { updateCommand } from './commands/update.js';
 
 // Read version from package.json (single source of truth)
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -53,6 +54,7 @@ program.hook('preAction', (thisCommand) => {
 program.addCommand(addCommand);
 program.addCommand(listCommand);
 program.addCommand(removeCommand);
+program.addCommand(updateCommand);
 
 // Handle --json flag for help output
 program.on('option:json', () => {
