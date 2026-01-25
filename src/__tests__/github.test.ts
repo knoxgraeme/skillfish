@@ -163,7 +163,9 @@ describe('findAllSkillMdFiles', () => {
     const repoResponse = { default_branch: 'main' };
     mockFetch
       .mockResolvedValueOnce(new Response(JSON.stringify(repoResponse), { status: 200 })) // repo metadata
-      .mockResolvedValueOnce(new Response(JSON.stringify({ tree: 'not-an-array' }), { status: 200 })); // malformed tree
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ tree: 'not-an-array' }), { status: 200 })
+      ); // malformed tree
 
     await expect(findAllSkillMdFiles('owner', 'repo')).rejects.toThrow(GitHubApiError);
   });
@@ -172,7 +174,9 @@ describe('findAllSkillMdFiles', () => {
     const repoResponse = { default_branch: 'main' };
     mockFetch
       .mockResolvedValueOnce(new Response(JSON.stringify(repoResponse), { status: 200 })) // repo metadata
-      .mockResolvedValueOnce(new Response(JSON.stringify({ tree: [{ invalid: true }] }), { status: 200 })); // invalid tree
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ tree: [{ invalid: true }] }), { status: 200 })
+      ); // invalid tree
 
     await expect(findAllSkillMdFiles('owner', 'repo')).rejects.toThrow(GitHubApiError);
   });

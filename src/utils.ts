@@ -29,24 +29,24 @@ export function isValidPath(pathStr: string): boolean {
 /**
  * Type for GitHub tree API item.
  */
-export type GitTreeItem = {
+export interface GitTreeItem {
   path: string;
   type: string;
   mode?: string;
   sha?: string;
   size?: number;
   url?: string;
-};
+}
 
 /**
  * Type for GitHub tree API response.
  */
-export type GitTreeResponse = {
+export interface GitTreeResponse {
   tree?: GitTreeItem[];
   sha?: string;
   url?: string;
   truncated?: boolean;
-};
+}
 
 /**
  * Type guard for GitHub tree API response.
@@ -116,9 +116,7 @@ export function deriveSkillName(skillPath: string, repoName: string): string {
  * "my_cool_skill" → "My Cool Skill"
  */
 export function toTitleCase(str: string): string {
-  return str
-    .replace(/[-_]/g, ' ')
-    .replace(/\b\w/g, char => char.toUpperCase());
+  return str.replace(/[-_]/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 /**
@@ -132,18 +130,18 @@ export function truncate(text: string, maxLength: number): string {
 /**
  * Extract SKILL.md paths from validated GitHub tree response.
  */
-export function extractSkillPaths(data: GitTreeResponse, skillFilename: string = 'SKILL.md'): string[] {
+export function extractSkillPaths(data: GitTreeResponse, skillFilename = 'SKILL.md'): string[] {
   if (!data.tree) return [];
   return data.tree
-    .filter(item => item.type === 'blob' && item.path.endsWith(skillFilename))
-    .map(item => item.path);
+    .filter((item) => item.type === 'blob' && item.path.endsWith(skillFilename))
+    .map((item) => item.path);
 }
 
 /**
  * Sleep for a specified duration.
  */
 export function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -157,7 +155,7 @@ export function sleep(ms: number): Promise<void> {
 export async function batchMap<T, R>(
   items: T[],
   fn: (item: T) => Promise<R>,
-  concurrency: number = 10
+  concurrency = 10
 ): Promise<R[]> {
   const results: R[] = [];
   let index = 0;
@@ -205,7 +203,7 @@ export interface BaseJsonOutput {
  */
 export interface AddJsonOutput extends BaseJsonOutput {
   installed: InstalledSkill[];
-  skipped: Array<{ skill: string; agent: string; reason: string }>;
+  skipped: { skill: string; agent: string; reason: string }[];
   skills_found?: string[];
 }
 

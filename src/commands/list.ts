@@ -26,12 +26,15 @@ export const listCommand = new Command('list')
   .option('--global', 'List global skills only (~/.claude)')
   .option('--agent <name>', 'Filter to a specific agent')
   .helpOption('-h, --help', 'Display help for command')
-  .addHelpText('after', `
+  .addHelpText(
+    'after',
+    `
 Examples:
   $ skillfish list                        List all installed skills
   $ skillfish list --agent "Claude Code"  List skills for a specific agent
   $ skillfish list --project              List skills in current project
-  $ skillfish list --global               List global skills only`)
+  $ skillfish list --global               List global skills only`
+  )
   .action(async (options: ListCommandOptions, command: Command) => {
     const jsonMode = command.parent?.opts().json ?? false;
     const projectFlag = options.project ?? false;
@@ -61,7 +64,11 @@ Examples:
       process.exit(exitCode);
     }
 
-    function exitWithError(message: string, exitCode: ExitCode, data: Partial<ListJsonOutput> = {}): never {
+    function exitWithError(
+      message: string,
+      exitCode: ExitCode,
+      data: Partial<ListJsonOutput> = {}
+    ): never {
       if (jsonMode) {
         addError(message);
         outputJsonAndExit(exitCode, data);
@@ -105,7 +112,12 @@ Examples:
             const skillPath = join(globalDir, skill);
             if (!seenPaths.has(skillPath)) {
               seenPaths.add(skillPath);
-              const item: InstalledSkill = { agent: agent.name, skill, path: skillPath, location: 'global' };
+              const item: InstalledSkill = {
+                agent: agent.name,
+                skill,
+                path: skillPath,
+                location: 'global',
+              };
               installed.push(item);
               globalSkills.push(item);
             }
@@ -119,7 +131,12 @@ Examples:
             // Skip if already seen (avoids duplicates when cwd is under home)
             if (!seenPaths.has(skillPath)) {
               seenPaths.add(skillPath);
-              const item: InstalledSkill = { agent: agent.name, skill, path: skillPath, location: 'project' };
+              const item: InstalledSkill = {
+                agent: agent.name,
+                skill,
+                path: skillPath,
+                location: 'project',
+              };
               installed.push(item);
               projectSkills.push(item);
             }
@@ -143,9 +160,7 @@ Examples:
 
     // Filter to specific agent if --agent flag provided
     if (agentFilter) {
-      const found = detected.filter(
-        (a) => a.name.toLowerCase() === agentFilter.toLowerCase()
-      );
+      const found = detected.filter((a) => a.name.toLowerCase() === agentFilter.toLowerCase());
       if (found.length === 0) {
         exitWithError(
           `Agent "${agentFilter}" not found. Detected: ${detected.map((a) => a.name).join(', ')}`,
@@ -177,7 +192,10 @@ Examples:
       if (hasBothLocations && isInputTTY()) {
         const locationOptions = [
           { value: 'global' as const, label: `Global (~/) ${pc.dim(`(${globalSkills.length})`)}` },
-          { value: 'project' as const, label: `Project (./) ${pc.dim(`(${projectSkills.length})`)}` },
+          {
+            value: 'project' as const,
+            label: `Project (./) ${pc.dim(`(${projectSkills.length})`)}`,
+          },
         ];
 
         const selectedLocation = await p.select({
@@ -260,7 +278,10 @@ Examples:
       if (hasBothLocations) {
         const locationOptions = [
           { value: 'global' as const, label: `Global (~/) ${pc.dim(`(${globalSkills.length})`)}` },
-          { value: 'project' as const, label: `Project (./) ${pc.dim(`(${projectSkills.length})`)}` },
+          {
+            value: 'project' as const,
+            label: `Project (./) ${pc.dim(`(${projectSkills.length})`)}`,
+          },
         ];
 
         const selectedLocation = await p.select({
@@ -328,7 +349,9 @@ Examples:
     if (installed.length === 0) {
       p.outro(pc.dim('No skills installed'));
     } else {
-      p.outro(`${pc.cyan(installed.length.toString())} skill${installed.length === 1 ? '' : 's'} total`);
+      p.outro(
+        `${pc.cyan(installed.length.toString())} skill${installed.length === 1 ? '' : 's'} total`
+      );
     }
     process.exit(EXIT_CODES.SUCCESS);
   });

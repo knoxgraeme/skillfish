@@ -11,12 +11,12 @@ import { join } from 'path';
  * Agent configuration - data-driven for easier maintenance.
  * Detection checks home directory (agent installed globally) and cwd (local project).
  */
-export type AgentConfig = {
+export interface AgentConfig {
   readonly name: string;
   readonly dir: string;
   readonly homePaths: readonly string[]; // Paths to check in ~/
   readonly cwdPaths: readonly string[]; // Paths to check in ./
-};
+}
 
 export const AGENT_CONFIGS: readonly AgentConfig[] = [
   // === Primary Agents (widely used) ===
@@ -143,11 +143,11 @@ export function detectAgent(config: AgentConfig, baseDir?: string): boolean {
 /**
  * Runtime agent type with detect function.
  */
-export type Agent = {
+export interface Agent {
   readonly name: string;
   readonly dir: string;
   readonly detect: () => boolean;
-};
+}
 
 /**
  * Build AGENTS array from config (preserves existing API).

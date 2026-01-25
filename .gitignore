@@ -27,7 +27,14 @@ yarn-error.log*
 
 # Cache
 .cache/
+.npm/
 *.tsbuildinfo
+
+# Test coverage
+coverage/
+
+# npm pack output
+*.tgz
 
 # Agent configurations (local development)
 .claude/

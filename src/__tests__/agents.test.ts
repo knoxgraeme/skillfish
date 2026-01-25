@@ -175,8 +175,7 @@ describe('agents.ts', () => {
       // Claude and Cursor paths exist
       mockExistsSync.mockImplementation((path: string) => {
         return (
-          path === '/home/user/.claude/settings.json' ||
-          path === '/home/user/.cursor/extensions'
+          path === '/home/user/.claude/settings.json' || path === '/home/user/.cursor/extensions'
         );
       });
 

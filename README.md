@@ -1,5 +1,11 @@
 # skillfish
 
+[![npm](https://img.shields.io/npm/v/skillfish)](https://npmjs.com/package/skillfish)
+[![downloads](https://img.shields.io/npm/dm/skillfish)](https://npmjs.com/package/skillfish)
+[![license](https://img.shields.io/npm/l/skillfish)](LICENSE)
+[![node](https://img.shields.io/node/v/skillfish)](package.json)
+[![CI](https://github.com/knoxgraeme/skillfish/actions/workflows/ci.yml/badge.svg)](https://github.com/knoxgraeme/skillfish/actions)
+
 Install AI agent skills from GitHub with a single command.
 
 ```bash
@@ -183,10 +189,22 @@ skillfish add owner/repo --json
 # Output includes: "exit_code": 0 (or error code)
 ```
 
+## Security
+
+**Security Note:** Skills are markdown files that provide instructions to AI agents. Always review skills before installing. skillfish does not vet third-party skills.
+
+To report security vulnerabilities, please email security@skill.fish. See [SECURITY.md](SECURITY.md) for details.
+
 ## Contributing
 
-Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## License
 
-AGPL-3.0
+[AGPL-3.0](LICENSE) - Graeme Knox

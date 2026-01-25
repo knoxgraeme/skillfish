@@ -4,10 +4,18 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, writeFileSync, symlinkSync, rmSync, mkdirSync, existsSync, readFileSync } from 'fs';
+import {
+  mkdtempSync,
+  writeFileSync,
+  symlinkSync,
+  rmSync,
+  mkdirSync,
+  existsSync,
+  readFileSync,
+} from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { safeCopyDir, installSkill, SkillMdNotFoundError } from '../lib/installer.js';
+import { safeCopyDir, installSkill } from '../lib/installer.js';
 import { invokeCli } from './invoke-cli.js';
 import type { Agent } from '../lib/agents.js';
 
@@ -142,7 +150,12 @@ describe('CLI input validation', () => {
   });
 
   it('rejects backslash traversal attempts', () => {
-    const { exitCode, stderr } = invokeCli(['add', 'owner/repo', '--path', '..\\windows\\system32']);
+    const { exitCode, stderr } = invokeCli([
+      'add',
+      'owner/repo',
+      '--path',
+      '..\\windows\\system32',
+    ]);
     expect(exitCode).toBe(2);
     expect(stderr).toContain('Invalid --path value');
   });

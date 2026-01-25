@@ -180,7 +180,9 @@ describe('truncate', () => {
   });
 
   it('truncates long text with ellipsis', () => {
-    expect(truncate('This is a long description that needs truncation', 20)).toBe('This is a long desc…');
+    expect(truncate('This is a long description that needs truncation', 20)).toBe(
+      'This is a long desc…'
+    );
   });
 
   it('trims whitespace before ellipsis', () => {
@@ -203,11 +205,7 @@ describe('extractSkillPaths', () => {
     };
 
     const paths = extractSkillPaths(response);
-    expect(paths).toEqual([
-      'SKILL.md',
-      'skills/foo/SKILL.md',
-      'skills/bar/SKILL.md',
-    ]);
+    expect(paths).toEqual(['SKILL.md', 'skills/foo/SKILL.md', 'skills/bar/SKILL.md']);
   });
 
   it('returns empty array for empty tree', () => {

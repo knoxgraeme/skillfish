@@ -34,7 +34,7 @@ describe('remove command', () => {
   });
 
   it('outputs valid JSON with --json flag and --all when no skills', () => {
-    const { stdout, exitCode } = invokeCli(['--json', 'remove', '--all']);
+    const { stdout } = invokeCli(['--json', 'remove', '--all']);
     // Should output valid JSON even when no skills found
     expect(() => JSON.parse(stdout)).not.toThrow();
     const json = JSON.parse(stdout);
@@ -43,7 +43,13 @@ describe('remove command', () => {
   });
 
   it('reports error when agent not found', () => {
-    const { stdout, exitCode } = invokeCli(['--json', 'remove', 'some-skill', '--agent', 'NonexistentAgent']);
+    const { stdout, exitCode } = invokeCli([
+      '--json',
+      'remove',
+      'some-skill',
+      '--agent',
+      'NonexistentAgent',
+    ]);
     expect(exitCode).toBe(4); // EXIT_NOT_FOUND
     const json = JSON.parse(stdout);
     expect(json.success).toBe(false);

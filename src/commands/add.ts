@@ -46,12 +46,12 @@ interface AddCommandOptions {
   path?: string;
 }
 
-type SkillMetadata = {
+interface SkillMetadata {
   path: string; // Full path to SKILL.md
   dir: string; // Directory containing SKILL.md
   name: string; // From frontmatter or folder name
   description: string; // From frontmatter or empty
-};
+}
 
 // === Command Definition ===
 
@@ -66,280 +66,306 @@ export const addCommand = new Command('add')
   .option('--global', 'Install to home directory (~/.claude)')
   .option('--path <path>', 'Path to a specific skill in the repository')
   .helpOption('-h, --help', 'Display help for command')
-  .addHelpText('after', `
+  .addHelpText(
+    'after',
+    `
 Examples:
   $ skillfish add owner/repo                  Install from a repository
   $ skillfish add owner/repo my-skill         Install skill by name
   $ skillfish add owner/repo --all            Install all skills in repo
   $ skillfish add owner/repo/plugin/skill     Install a specific skill by path
   $ skillfish add owner/repo --path path/to   Install skill at specific path
-  $ skillfish add owner/repo --project        Install to current project only`)
-  .action(async (repoArg: string, skillNameArg: string | undefined, options: AddCommandOptions, command: Command) => {
-    const jsonMode = command.parent?.opts().json ?? false;
-    const jsonOutput = createJsonOutput();
-    const version = command.parent?.opts().version ?? '0.0.0';
+  $ skillfish add owner/repo --project        Install to current project only`
+  )
+  .action(
+    async (
+      repoArg: string,
+      skillNameArg: string | undefined,
+      options: AddCommandOptions,
+      command: Command
+    ) => {
+      const jsonMode = command.parent?.opts().json ?? false;
+      const jsonOutput = createJsonOutput();
+      const version = command.parent?.opts().version ?? '0.0.0';
 
-    // Helper to add error and optionally output JSON
-    function addError(message: string): void {
-      jsonOutput.errors.push(message);
-      jsonOutput.success = false;
-    }
-
-    function outputJsonAndExit(exitCode: number): never {
-      jsonOutput.exit_code = exitCode;
-      console.log(JSON.stringify(jsonOutput, null, 2));
-      process.exit(exitCode);
-    }
-
-    /**
-     * Unified error handler that handles both JSON and TTY modes.
-     * In JSON mode: adds error to output and exits with JSON.
-     * In TTY mode: logs error to console and exits.
-     * @param useClackLog - Use p.log.error() instead of console.error()
-     */
-    function exitWithError(message: string, exitCode: ExitCode, useClackLog = false): never {
-      if (jsonMode) {
-        addError(message);
-        outputJsonAndExit(exitCode);
+      // Helper to add error and optionally output JSON
+      function addError(message: string): void {
+        jsonOutput.errors.push(message);
+        jsonOutput.success = false;
       }
-      if (useClackLog) {
-        p.log.error(message);
-      } else {
-        console.error(message);
+
+      function outputJsonAndExit(exitCode: number): never {
+        jsonOutput.exit_code = exitCode;
+        console.log(JSON.stringify(jsonOutput, null, 2));
+        process.exit(exitCode);
       }
-      process.exit(exitCode);
-    }
 
-    // Show banner and intro (TTY only, not in JSON mode)
-    if (isTTY() && !jsonMode) {
-      console.log();
-      console.log(pc.cyan('     ≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋'));
-      console.log(`       ${pc.cyan('><>')}  ${pc.bold('SKILL FISH')}  ${pc.cyan('><>')}`);
-      console.log(pc.cyan('     ≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋'));
-      console.log();
-      p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim(`v${version}`)}`);
-    }
-
-    const force = options.force ?? false;
-    const trustSource = options.yes ?? false;
-    const installAll = options.all ?? false;
-    const projectFlag = options.project ?? false;
-    const globalFlag = options.global ?? false;
-    let explicitPath: string | null = options.path ?? null;
-
-    // Validate --path if provided
-    if (explicitPath !== null) {
-      if (!isValidPath(explicitPath)) {
-        exitWithError(
-          'Invalid --path value. Path must be relative and contain only safe characters.',
-          EXIT_CODES.INVALID_ARGS
-        );
+      /**
+       * Unified error handler that handles both JSON and TTY modes.
+       * In JSON mode: adds error to output and exits with JSON.
+       * In TTY mode: logs error to console and exits.
+       * @param useClackLog - Use p.log.error() instead of console.error()
+       */
+      function exitWithError(message: string, exitCode: ExitCode, useClackLog = false): never {
+        if (jsonMode) {
+          addError(message);
+          outputJsonAndExit(exitCode);
+        }
+        if (useClackLog) {
+          p.log.error(message);
+        } else {
+          console.error(message);
+        }
+        process.exit(exitCode);
       }
-    }
 
-    // Parse repo format - supports owner/repo and owner/repo/path/to/skill
-    const parts = repoArg.split('/');
-    let owner: string;
-    let repo: string;
+      // Show banner and intro (TTY only, not in JSON mode)
+      if (isTTY() && !jsonMode) {
+        console.log();
+        console.log(pc.cyan('     ≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋'));
+        console.log(`       ${pc.cyan('><>')}  ${pc.bold('SKILL FISH')}  ${pc.cyan('><>')}`);
+        console.log(pc.cyan('     ≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋'));
+        console.log();
+        p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim(`v${version}`)}`);
+      }
 
-    if (parts.length < 2) {
-      exitWithError(
-        'Invalid format. Use: owner/repo or owner/repo/path/to/skill',
-        EXIT_CODES.INVALID_ARGS
-      );
-    }
+      const force = options.force ?? false;
+      const trustSource = options.yes ?? false;
+      const installAll = options.all ?? false;
+      const projectFlag = options.project ?? false;
+      const globalFlag = options.global ?? false;
+      let explicitPath: string | null = options.path ?? null;
 
-    [owner, repo] = parts;
-
-    // If path components exist after owner/repo, use them as the skill path
-    if (parts.length > 2) {
-      const pathParts = parts.slice(2);
-      // Security: validate each path component
-      for (const part of pathParts) {
-        if (!isValidName(part)) {
+      // Validate --path if provided
+      if (explicitPath !== null) {
+        if (!isValidPath(explicitPath)) {
           exitWithError(
-            'Invalid path component. Use only alphanumeric characters, dots, hyphens, and underscores.',
+            'Invalid --path value. Path must be relative and contain only safe characters.',
             EXIT_CODES.INVALID_ARGS
           );
         }
       }
-      explicitPath = explicitPath || pathParts.join('/');
-      if (!jsonMode) {
-        console.log(`Installing skill from: ${explicitPath}`);
+
+      // Parse repo format - supports owner/repo and owner/repo/path/to/skill
+      const parts = repoArg.split('/');
+      let owner: string;
+      let repo: string;
+
+      if (parts.length < 2) {
+        exitWithError(
+          'Invalid format. Use: owner/repo or owner/repo/path/to/skill',
+          EXIT_CODES.INVALID_ARGS
+        );
       }
-    }
 
-    // Validate owner/repo (security: prevent injection)
-    if (!owner || !repo || !isValidName(owner) || !isValidName(repo)) {
-      exitWithError('Invalid repository format. Use: owner/repo', EXIT_CODES.INVALID_ARGS);
-    }
+      [owner, repo] = parts as [string, string];
 
-    // 1. Discover or select skills
-    let discoveryResult: { paths: string[]; branch: string | undefined } | null;
-    if (explicitPath) {
-      // For explicit paths, we still need to fetch the default branch for degit
-      try {
-        const branch = await fetchDefaultBranch(owner, repo);
-        discoveryResult = { paths: [explicitPath], branch };
-      } catch (err) {
-        // If we can't fetch the branch, let degit try its own detection
-        discoveryResult = { paths: [explicitPath], branch: undefined };
-      }
-    } else {
-      discoveryResult = await discoverSkillPaths(owner, repo, installAll, jsonMode, jsonOutput, skillNameArg);
-    }
-
-    if (!discoveryResult || discoveryResult.paths.length === 0) {
-      if (jsonMode) {
-        outputJsonAndExit(EXIT_CODES.NOT_FOUND);
-      }
-      process.exit(EXIT_CODES.NOT_FOUND);
-    }
-
-    const { paths: skillPaths, branch: discoveredBranch } = discoveryResult;
-
-    // 2. Determine install location (global vs project)
-    const baseDir = await selectInstallLocation(projectFlag, globalFlag, jsonMode);
-
-    // 3. Select agents to install to
-    const detected = getDetectedAgents();
-
-    if (detected.length === 0) {
-      const errorMsg = 'No agents detected. Install Claude Code, Cursor, or another supported agent first.';
-      if (jsonMode) {
-        addError(errorMsg);
-        outputJsonAndExit(EXIT_CODES.GENERAL_ERROR);
-      }
-      p.log.error(errorMsg);
-      p.outro(pc.dim('https://skill.fish/agents'));
-      process.exit(EXIT_CODES.GENERAL_ERROR);
-    }
-
-    let targetAgents: readonly Agent[];
-
-    if (!isInputTTY() || jsonMode) {
-      // Non-TTY or JSON mode: use all detected agents
-      if (!jsonMode) {
-        console.log(`Installing to ${detected.length} agent(s): ${detected.map((a) => a.name).join(', ')}`);
-      }
-      targetAgents = detected;
-    } else {
-      // Interactive: let user choose from detected agents
-      const isLocal = baseDir !== homedir();
-      targetAgents = await selectAgents(detected, isLocal, jsonMode);
-    }
-
-    // Install each selected skill
-    let totalInstalled = 0;
-    let totalSkipped = 0;
-    const telemetryPromises: Promise<void>[] = [];
-
-    // SECURITY: Ask for confirmation before installation (unless --yes is used)
-    // Single confirmation for all selected skills
-    if (!trustSource && !jsonMode && isInputTTY()) {
-      const skillNames = skillPaths.map((sp) => deriveSkillName(sp, repo));
-      const shouldInstall = await confirmInstallBatch(owner, repo, skillNames);
-      if (!shouldInstall) {
-        for (const skillName of skillNames) {
-          p.log.warn(`Skipped ${pc.bold(skillName)} (not confirmed)`);
-          jsonOutput.skipped.push({ skill: skillName, agent: 'all', reason: 'User declined' });
+      // If path components exist after owner/repo, use them as the skill path
+      if (parts.length > 2) {
+        const pathParts = parts.slice(2);
+        // Security: validate each path component
+        for (const part of pathParts) {
+          if (!isValidName(part)) {
+            exitWithError(
+              'Invalid path component. Use only alphanumeric characters, dots, hyphens, and underscores.',
+              EXIT_CODES.INVALID_ARGS
+            );
+          }
         }
-        p.outro(pc.dim('Cancelled'));
-        process.exit(EXIT_CODES.SUCCESS);
-      }
-    }
-
-    for (const skillPath of skillPaths) {
-      const skillName = deriveSkillName(skillPath, repo);
-
-      // Show install progress
-      let spinner: ReturnType<typeof p.spinner> | null = null;
-      if (!jsonMode) {
-        p.log.step(`Installing ${pc.bold(skillName)}`);
-        spinner = p.spinner();
-        spinner.start(`Downloading ${skillName}...`);
-      }
-
-      const result = await installSkill(owner, repo, skillPath, skillName, targetAgents, {
-        force,
-        baseDir,
-        branch: discoveredBranch,
-      });
-
-      if (spinner) {
-        if (result.failed) {
-          spinner.stop(pc.red(`${SKILL_FILENAME} not found`));
-        } else {
-          spinner.stop(pc.green('Installed'));
+        explicitPath = explicitPath || pathParts.join('/');
+        if (!jsonMode) {
+          console.log(`Installing skill from: ${explicitPath}`);
         }
       }
 
-      // Handle result
-      if (result.failed) {
+      // Validate owner/repo (security: prevent injection)
+      if (!owner || !repo || !isValidName(owner) || !isValidName(repo)) {
+        exitWithError('Invalid repository format. Use: owner/repo', EXIT_CODES.INVALID_ARGS);
+      }
+
+      // 1. Discover or select skills
+      let discoveryResult: { paths: string[]; branch: string | undefined } | null;
+      if (explicitPath) {
+        // For explicit paths, we still need to fetch the default branch for degit
+        try {
+          const branch = await fetchDefaultBranch(owner, repo);
+          discoveryResult = { paths: [explicitPath], branch };
+        } catch {
+          // If we can't fetch the branch, let degit try its own detection
+          discoveryResult = { paths: [explicitPath], branch: undefined };
+        }
+      } else {
+        discoveryResult = await discoverSkillPaths(
+          owner,
+          repo,
+          installAll,
+          jsonMode,
+          jsonOutput,
+          skillNameArg
+        );
+      }
+
+      if (!discoveryResult || discoveryResult.paths.length === 0) {
         if (jsonMode) {
-          addError(`Install failed: ${result.failureReason}`);
-        } else {
-          console.error(pc.red(`Error: ${result.failureReason}`));
+          outputJsonAndExit(EXIT_CODES.NOT_FOUND);
         }
-        continue;
+        process.exit(EXIT_CODES.NOT_FOUND);
       }
 
-      // Log installed/skipped for this skill
-      const isLocal = baseDir !== homedir();
-      const pathPrefix = isLocal ? '.' : '~';
+      const { paths: skillPaths, branch: discoveredBranch } = discoveryResult;
 
-      for (const installed of result.installed) {
+      // 2. Determine install location (global vs project)
+      const baseDir = await selectInstallLocation(projectFlag, globalFlag, jsonMode);
+
+      // 3. Select agents to install to
+      const detected = getDetectedAgents();
+
+      if (detected.length === 0) {
+        const errorMsg =
+          'No agents detected. Install Claude Code, Cursor, or another supported agent first.';
+        if (jsonMode) {
+          addError(errorMsg);
+          outputJsonAndExit(EXIT_CODES.GENERAL_ERROR);
+        }
+        p.log.error(errorMsg);
+        p.outro(pc.dim('https://skill.fish/agents'));
+        process.exit(EXIT_CODES.GENERAL_ERROR);
+      }
+
+      let targetAgents: readonly Agent[];
+
+      if (!isInputTTY() || jsonMode) {
+        // Non-TTY or JSON mode: use all detected agents
         if (!jsonMode) {
-          const displayPath = `${pathPrefix}/${AGENT_CONFIGS.find((c) => c.name === installed.agent)?.dir ?? 'skills'}/${skillName}`;
-          console.log(`  ${pc.green('✓')} ${installed.agent} ${pc.dim(`→ ${displayPath}`)}`);
+          console.log(
+            `Installing to ${detected.length} agent(s): ${detected.map((a) => a.name).join(', ')}`
+          );
         }
-        jsonOutput.installed.push(installed);
+        targetAgents = detected;
+      } else {
+        // Interactive: let user choose from detected agents
+        const isLocal = baseDir !== homedir();
+        targetAgents = await selectAgents(detected, isLocal, jsonMode);
       }
 
-      for (const skipped of result.skipped) {
+      // Install each selected skill
+      let totalInstalled = 0;
+      let totalSkipped = 0;
+      const telemetryPromises: Promise<void>[] = [];
+
+      // SECURITY: Ask for confirmation before installation (unless --yes is used)
+      // Single confirmation for all selected skills
+      if (!trustSource && !jsonMode && isInputTTY()) {
+        const skillNames = skillPaths.map((sp) => deriveSkillName(sp, repo));
+        const shouldInstall = await confirmInstallBatch(owner, repo, skillNames);
+        if (!shouldInstall) {
+          for (const skillName of skillNames) {
+            p.log.warn(`Skipped ${pc.bold(skillName)} (not confirmed)`);
+            jsonOutput.skipped.push({ skill: skillName, agent: 'all', reason: 'User declined' });
+          }
+          p.outro(pc.dim('Cancelled'));
+          process.exit(EXIT_CODES.SUCCESS);
+        }
+      }
+
+      for (const skillPath of skillPaths) {
+        const skillName = deriveSkillName(skillPath, repo);
+
+        // Show install progress
+        let spinner: ReturnType<typeof p.spinner> | null = null;
         if (!jsonMode) {
-          console.log(`  ${pc.yellow('●')} ${skipped.agent} ${pc.dim('(already installed)')}`);
+          p.log.step(`Installing ${pc.bold(skillName)}`);
+          spinner = p.spinner();
+          spinner.start(`Downloading ${skillName}...`);
         }
-        jsonOutput.skipped.push(skipped);
-      }
 
-      // Add warnings as errors in JSON output
-      for (const warning of result.warnings) {
-        jsonOutput.errors.push(warning);
-        if (!jsonMode) {
-          console.log(`  ${pc.yellow('!')} ${warning}`);
+        const result = await installSkill(owner, repo, skillPath, skillName, targetAgents, {
+          force,
+          baseDir,
+          branch: discoveredBranch,
+        });
+
+        if (spinner) {
+          if (result.failed) {
+            spinner.stop(pc.red(`${SKILL_FILENAME} not found`));
+          } else {
+            spinner.stop(pc.green('Installed'));
+          }
+        }
+
+        // Handle result
+        if (result.failed) {
+          if (jsonMode) {
+            addError(`Install failed: ${result.failureReason}`);
+          } else {
+            console.error(pc.red(`Error: ${result.failureReason}`));
+          }
+          continue;
+        }
+
+        // Log installed/skipped for this skill
+        const isLocal = baseDir !== homedir();
+        const pathPrefix = isLocal ? '.' : '~';
+
+        for (const installed of result.installed) {
+          if (!jsonMode) {
+            const displayPath = `${pathPrefix}/${AGENT_CONFIGS.find((c) => c.name === installed.agent)?.dir ?? 'skills'}/${skillName}`;
+            console.log(`  ${pc.green('✓')} ${installed.agent} ${pc.dim(`→ ${displayPath}`)}`);
+          }
+          jsonOutput.installed.push(installed);
+        }
+
+        for (const skipped of result.skipped) {
+          if (!jsonMode) {
+            console.log(`  ${pc.yellow('●')} ${skipped.agent} ${pc.dim('(already installed)')}`);
+          }
+          jsonOutput.skipped.push(skipped);
+        }
+
+        // Add warnings as errors in JSON output
+        for (const warning of result.warnings) {
+          jsonOutput.errors.push(warning);
+          if (!jsonMode) {
+            console.log(`  ${pc.yellow('!')} ${warning}`);
+          }
+        }
+
+        totalInstalled += result.installed.length;
+        totalSkipped += result.skipped.length;
+
+        // Track successful installs (telemetry with timeout)
+        if (result.installed.length > 0) {
+          telemetryPromises.push(trackInstall(owner, repo, skillName));
         }
       }
 
-      totalInstalled += result.installed.length;
-      totalSkipped += result.skipped.length;
-
-      // Track successful installs (telemetry with timeout)
-      if (result.installed.length > 0) {
-        telemetryPromises.push(trackInstall(owner, repo, skillName));
+      // Wait for telemetry to complete (with timeout built into trackInstall)
+      if (telemetryPromises.length > 0) {
+        await Promise.all(telemetryPromises);
       }
-    }
 
-    // Wait for telemetry to complete (with timeout built into trackInstall)
-    if (telemetryPromises.length > 0) {
-      await Promise.all(telemetryPromises);
-    }
+      // Summary
+      if (jsonMode) {
+        outputJsonAndExit(EXIT_CODES.SUCCESS);
+      }
 
-    // Summary
-    if (jsonMode) {
-      outputJsonAndExit(EXIT_CODES.SUCCESS);
+      console.log();
+      if (totalInstalled > 0) {
+        p.outro(
+          pc.green(`Done! Installed ${totalInstalled} skill${totalInstalled === 1 ? '' : 's'}`)
+        );
+      } else if (totalSkipped > 0) {
+        p.outro(
+          pc.yellow(
+            `Skipped ${totalSkipped} existing skill${totalSkipped === 1 ? '' : 's'} - use --force to overwrite`
+          )
+        );
+      } else {
+        p.outro(pc.yellow('No skills installed'));
+      }
+      process.exit(EXIT_CODES.SUCCESS);
     }
-
-    console.log();
-    if (totalInstalled > 0) {
-      p.outro(pc.green(`Done! Installed ${totalInstalled} skill${totalInstalled === 1 ? '' : 's'}`));
-    } else if (totalSkipped > 0) {
-      p.outro(pc.yellow(`Skipped ${totalSkipped} existing skill${totalSkipped === 1 ? '' : 's'} - use --force to overwrite`));
-    } else {
-      p.outro(pc.yellow('No skills installed'));
-    }
-    process.exit(EXIT_CODES.SUCCESS);
-  });
+  );
 
 // === Helper Functions ===
 
@@ -528,7 +554,9 @@ async function discoverSkillPaths(
   );
 
   if (spinner) {
-    spinner.stop(`Found ${pc.cyan(skills.length.toString())} skill${skills.length === 1 ? '' : 's'}`);
+    spinner.stop(
+      `Found ${pc.cyan(skills.length.toString())} skill${skills.length === 1 ? '' : 's'}`
+    );
   }
 
   // Store found skills in JSON output
@@ -547,9 +575,9 @@ async function discoverSkillPaths(
       const dirBasename = normalize(s.dir.split('/').pop() || '');
 
       return (
-        normalizedName === normalizedTarget ||       // Exact name match (normalized)
-        normalizedDir === normalizedTarget ||        // Exact dir match
-        dirBasename === normalizedTarget ||          // Directory basename match
+        normalizedName === normalizedTarget || // Exact name match (normalized)
+        normalizedDir === normalizedTarget || // Exact dir match
+        dirBasename === normalizedTarget || // Directory basename match
         s.name.toLowerCase() === targetSkillName.toLowerCase() // Original case-insensitive
       );
     });
@@ -619,7 +647,9 @@ async function discoverSkillPaths(
         const desc = skill.description ? pc.dim(` - ${truncate(skill.description, 80)}`) : '';
         console.log(`  - ${pc.cyan(skill.name)} ${displayName}${desc}`);
       }
-      console.error('\nMultiple skills found. Specify skill name, use --path, or --all (non-interactive mode).');
+      console.error(
+        '\nMultiple skills found. Specify skill name, use --path, or --all (non-interactive mode).'
+      );
     }
     return null;
   }
@@ -644,7 +674,11 @@ async function discoverSkillPaths(
  * This mitigates supply chain attacks by making users acknowledge the source.
  * Handles batch confirmation for multiple skills at once.
  */
-async function confirmInstallBatch(owner: string, repo: string, skillNames: string[]): Promise<boolean> {
+async function confirmInstallBatch(
+  owner: string,
+  repo: string,
+  skillNames: string[]
+): Promise<boolean> {
   console.log();
   p.log.warn(pc.yellow('Skills can instruct AI agents to perform actions on your behalf.'));
   console.log(pc.dim(`  Source: github.com/${owner}/${repo}`));
@@ -659,9 +693,10 @@ async function confirmInstallBatch(owner: string, repo: string, skillNames: stri
   }
   console.log();
 
-  const skillLabel = skillNames.length === 1
-    ? pc.bold(skillNames[0])
-    : `${pc.bold(skillNames.length.toString())} skills`;
+  const skillLabel =
+    skillNames.length === 1
+      ? pc.bold(skillNames[0])
+      : `${pc.bold(skillNames.length.toString())} skills`;
 
   const proceed = await p.confirm({
     message: `Install ${skillLabel} from ${pc.cyan(`${owner}/${repo}`)}?`,

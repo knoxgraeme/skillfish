@@ -1,0 +1,53 @@
+name: New Agent Support
+description: Request support for a new AI agent
+labels: ['new-agent', 'enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help us add support for a new AI agent!
+
+  - type: input
+    id: agent-name
+    attributes:
+      label: Agent Name
+      description: What is the name of the AI agent?
+      placeholder: 'Example Agent'
+    validations:
+      required: true
+
+  - type: input
+    id: agent-website
+    attributes:
+      label: Agent Website
+      description: Link to the agent's website or documentation
+      placeholder: 'https://example.com'
+
+  - type: input
+    id: skills-directory
+    attributes:
+      label: Skills Directory
+      description: Where does the agent look for skills?
+      placeholder: '~/.example/skills/'
+    validations:
+      required: true
+
+  - type: textarea
+    id: detection
+    attributes:
+      label: Detection Files
+      description: What files indicate this agent is installed? (config files, directories, etc.)
+      placeholder: |
+        Home directory (~):
+        - .example/config.json
+
+        Project directory (./):
+        - .example/
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other relevant information about this agent?

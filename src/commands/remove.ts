@@ -12,7 +12,7 @@ import { getDetectedAgents, getAgentSkillDir, type Agent } from '../lib/agents.j
 import { listInstalledSkillsInDir } from '../lib/installer.js';
 import { isTTY, isInputTTY } from '../utils.js';
 import { EXIT_CODES, type ExitCode } from '../lib/constants.js';
-import type { RemoveJsonOutput, InstalledSkill } from '../utils.js';
+import type { RemoveJsonOutput } from '../utils.js';
 
 // === Types ===
 
@@ -42,13 +42,16 @@ export const removeCommand = new Command('remove')
   .option('--global', 'Remove from home directory only (~/.claude)')
   .option('--agent <name>', 'Remove from a specific agent only')
   .helpOption('-h, --help', 'Display help for command')
-  .addHelpText('after', `
+  .addHelpText(
+    'after',
+    `
 Examples:
   $ skillfish remove                    Interactive skill picker
   $ skillfish remove my-skill           Remove a skill by name
   $ skillfish remove --all              Remove all installed skills
   $ skillfish remove my-skill --project Remove from current project only
-  $ skillfish remove my-skill --agent "Claude Code"  Remove from specific agent`)
+  $ skillfish remove my-skill --agent "Claude Code"  Remove from specific agent`
+  )
   .action(async (skillArg: string | undefined, options: RemoveCommandOptions, command: Command) => {
     const jsonMode = command.parent?.opts().json ?? false;
     const version = command.parent?.opts().version ?? '0.0.0';
@@ -121,9 +124,7 @@ Examples:
     // Filter to target agent if specified
     let targetAgents: readonly Agent[] = detected;
     if (targetAgentName) {
-      const found = detected.filter(
-        (a) => a.name.toLowerCase() === targetAgentName.toLowerCase()
-      );
+      const found = detected.filter((a) => a.name.toLowerCase() === targetAgentName.toLowerCase());
       if (found.length === 0) {
         exitWithError(
           `Agent "${targetAgentName}" not found. Detected agents: ${detected.map((a) => a.name).join(', ')}`,
@@ -179,7 +180,9 @@ Examples:
               path: item.path,
             });
             if (!jsonMode) {
-              console.log(`  ${pc.green('✓')} Removed ${item.skill} ${pc.dim(`from ${item.agent.name}`)}`);
+              console.log(
+                `  ${pc.green('✓')} Removed ${item.skill} ${pc.dim(`from ${item.agent.name}`)}`
+              );
             }
           }
         } catch (err) {
@@ -276,7 +279,10 @@ Examples:
       if (hasBothLocations) {
         const locationOptions = [
           { value: 'global' as const, label: `Global (~/) ${pc.dim(`(${globalSkills.length})`)}` },
-          { value: 'project' as const, label: `Project (./) ${pc.dim(`(${projectSkills.length})`)}` },
+          {
+            value: 'project' as const,
+            label: `Project (./) ${pc.dim(`(${projectSkills.length})`)}`,
+          },
         ];
 
         const selectedLocation = await p.select({
@@ -342,7 +348,11 @@ Examples:
       // Output results
       console.log();
       if (result.removed.length > 0) {
-        p.outro(pc.green(`Done! Removed ${result.removed.length} skill${result.removed.length === 1 ? '' : 's'}`));
+        p.outro(
+          pc.green(
+            `Done! Removed ${result.removed.length} skill${result.removed.length === 1 ? '' : 's'}`
+          )
+        );
       } else {
         p.outro(pc.yellow('No skills removed'));
       }
@@ -377,7 +387,9 @@ Examples:
       console.log();
       p.log.warn(pc.yellow('The following skills will be removed:'));
       for (const item of skillsToRemove) {
-        console.log(`  ${pc.red('•')} ${item.skill} ${pc.dim(`(${item.agent.name}, ${item.location})`)}`);
+        console.log(
+          `  ${pc.red('•')} ${item.skill} ${pc.dim(`(${item.agent.name}, ${item.location})`)}`
+        );
       }
       console.log();
 
@@ -402,7 +414,11 @@ Examples:
 
     console.log();
     if (result.removed.length > 0) {
-      p.outro(pc.green(`Done! Removed ${result.removed.length} skill${result.removed.length === 1 ? '' : 's'}`));
+      p.outro(
+        pc.green(
+          `Done! Removed ${result.removed.length} skill${result.removed.length === 1 ? '' : 's'}`
+        )
+      );
     } else {
       p.outro(pc.yellow('No skills removed'));
     }

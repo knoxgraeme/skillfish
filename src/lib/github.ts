@@ -105,9 +105,7 @@ function wrapApiError(err: unknown): never {
   }
 
   // Wrap unknown errors as NetworkError
-  throw new NetworkError(
-    `Network error: ${err instanceof Error ? err.message : 'unknown error'}`
-  );
+  throw new NetworkError(`Network error: ${err instanceof Error ? err.message : 'unknown error'}`);
 }
 
 // === Functions ===
@@ -140,7 +138,7 @@ export async function fetchDefaultBranch(owner: string, repo: string): Promise<s
       throw new GitHubApiError(`GitHub API returned status ${res.status}`);
     }
 
-    const data = await res.json() as { default_branch?: string };
+    const data = (await res.json()) as { default_branch?: string };
     if (typeof data.default_branch !== 'string' || !data.default_branch) {
       throw new GitHubApiError('Repository metadata missing or invalid default_branch field');
     }
@@ -229,7 +227,10 @@ export async function fetchSkillMdContent(
  * @throws {NetworkError} On network errors (timeout, connection refused)
  * @throws {GitHubApiError} When the API response format is unexpected
  */
-export async function findAllSkillMdFiles(owner: string, repo: string): Promise<SkillDiscoveryResult> {
+export async function findAllSkillMdFiles(
+  owner: string,
+  repo: string
+): Promise<SkillDiscoveryResult> {
   const headers: Record<string, string> = { 'User-Agent': 'skillfish' };
 
   // Get the default branch

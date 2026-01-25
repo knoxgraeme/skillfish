@@ -32,14 +32,17 @@ const program = new Command()
   .configureHelp({
     sortSubcommands: true,
   })
-  .addHelpText('after', `
+  .addHelpText(
+    'after',
+    `
 Examples:
   $ skillfish add owner/repo                 Install skills from a repository
   $ skillfish add owner/repo/plugin/skill    Install a specific skill
   $ skillfish list                           Show installed skills
   $ skillfish remove my-skill                Remove a skill
 
-Documentation: https://skill.fish`);
+Documentation: https://skill.fish`
+  );
 
 // Store version in options for commands to access
 program.hook('preAction', (thisCommand) => {

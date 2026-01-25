@@ -34,6 +34,15 @@ npm run test:watch # Watch mode
 - ESM modules
 - Keep functions focused and testable
 
+Code quality is enforced via ESLint and Prettier. Pre-commit hooks will run automatically:
+
+```bash
+npm run lint        # Check for lint errors
+npm run lint:fix    # Auto-fix lint errors
+npm run format      # Format code with Prettier
+npm run typecheck   # Check TypeScript types
+```
+
 ## Pull Requests
 
 1. Fork the repo
@@ -45,7 +54,7 @@ npm run test:watch # Watch mode
 
 ## Adding Agent Support
 
-To add support for a new AI agent, add an entry to `AGENT_CONFIGS` in `src/index.ts`:
+To add support for a new AI agent, add an entry to `AGENT_CONFIGS` in `src/lib/agents.ts`:
 
 ```typescript
 {
@@ -63,6 +72,29 @@ Include:
 - Operating system
 - Steps to reproduce
 - Expected vs actual behavior
+
+## Developer Certificate of Origin
+
+This project uses the [Developer Certificate of Origin](https://developercertificate.org/) (DCO).
+
+By making a contribution, you certify that you have the right to submit it under the project's license.
+
+Sign your commits with `-s`:
+
+```bash
+git commit -s -m "feat: add new agent support"
+```
+
+This adds a `Signed-off-by` line to your commit message.
+
+## First-Time Contributors
+
+Welcome! We're excited to have you.
+
+1. **Find an issue**: Look for issues labeled [`good first issue`](https://github.com/knoxgraeme/skillfish/labels/good%20first%20issue)
+2. **Claim it**: Comment "I'd like to work on this"
+3. **Ask questions**: We're here to help - no question is too small
+4. **Submit your PR**: We'll review it promptly
 
 ## License
 

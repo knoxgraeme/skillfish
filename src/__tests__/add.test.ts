@@ -30,7 +30,7 @@ describe('add command', () => {
   it('accepts three-part format as owner/repo/path', () => {
     // Three parts is now valid: owner/repo/path
     // This will fail at network level, not parsing
-    const { exitCode, stderr } = invokeCli(['add', 'owner/repo/extra']);
+    const { stderr } = invokeCli(['add', 'owner/repo/extra']);
     // Should not fail with "Invalid format" - it should proceed to network request
     expect(stderr).not.toContain('Invalid format');
   });
