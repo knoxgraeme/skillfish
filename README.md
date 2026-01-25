@@ -107,9 +107,9 @@ When a repo contains multiple skills, you'll get an interactive multi-select men
 
 ```
 ◆  Select skills to install
-│  ◻ Frontend Design - Create distinctive, production-grade frontend interfaces
-│  ◻ Agent Browser - Browser automation using Vercel's agent-browser CLI
-│  ◻ Git Worktree - Manage Git worktrees for isolated parallel development
+│  ◻ my-skill - A helpful skill for your AI agent
+│  ◻ another-skill - Another useful capability
+│  ◻ third-skill - Yet another skill option
 │  ...
 └
 ```
@@ -123,7 +123,7 @@ Use `--all` to install all skills non-interactively (useful for automation).
 npx skillfish add user/my-skill
 
 # Install using full path from GitHub
-npx skillfish add EveryInc/compound-engineering-plugin/compound-engineering/frontend-design
+npx skillfish add owner/repo/path/to/skill
 
 # Install from a plugin repo with explicit path
 npx skillfish add org/plugin-repo --path plugins/my-plugin/skills/skill-name
