@@ -143,6 +143,91 @@ describe('manifest', () => {
 
       expect(result).toBeNull();
     });
+
+    it('returns null for manifest with invalid SHA format', () => {
+      const invalidManifest = {
+        version: MANIFEST_VERSION,
+        owner: 'test-owner',
+        repo: 'test-repo',
+        path: '.',
+        branch: 'main',
+        sha: 'not-a-valid-sha', // must be 40 hex chars
+      };
+
+      writeFileSync(join(testDir, MANIFEST_FILENAME), JSON.stringify(invalidManifest));
+
+      const result = readManifest(testDir);
+
+      expect(result).toBeNull();
+    });
+
+    it('returns null for manifest with path traversal', () => {
+      const invalidManifest = {
+        version: MANIFEST_VERSION,
+        owner: 'test-owner',
+        repo: 'test-repo',
+        path: '../../../etc/passwd',
+        branch: 'main',
+        sha: 'fc6274d15fa3ae2ab983129fb037999f264ba9a7',
+      };
+
+      writeFileSync(join(testDir, MANIFEST_FILENAME), JSON.stringify(invalidManifest));
+
+      const result = readManifest(testDir);
+
+      expect(result).toBeNull();
+    });
+
+    it('returns null for manifest with invalid owner name', () => {
+      const invalidManifest = {
+        version: MANIFEST_VERSION,
+        owner: 'test;rm -rf /',
+        repo: 'test-repo',
+        path: '.',
+        branch: 'main',
+        sha: 'fc6274d15fa3ae2ab983129fb037999f264ba9a7',
+      };
+
+      writeFileSync(join(testDir, MANIFEST_FILENAME), JSON.stringify(invalidManifest));
+
+      const result = readManifest(testDir);
+
+      expect(result).toBeNull();
+    });
+
+    it('returns null for manifest with invalid branch name', () => {
+      const invalidManifest = {
+        version: MANIFEST_VERSION,
+        owner: 'test-owner',
+        repo: 'test-repo',
+        path: '.',
+        branch: 'main; echo pwned',
+        sha: 'fc6274d15fa3ae2ab983129fb037999f264ba9a7',
+      };
+
+      writeFileSync(join(testDir, MANIFEST_FILENAME), JSON.stringify(invalidManifest));
+
+      const result = readManifest(testDir);
+
+      expect(result).toBeNull();
+    });
+
+    it('accepts valid manifest with complex branch name', () => {
+      const validManifest = {
+        version: MANIFEST_VERSION,
+        owner: 'test-owner',
+        repo: 'test-repo',
+        path: 'skills/my-skill',
+        branch: 'feature/add-new-skill_v2.0',
+        sha: 'fc6274d15fa3ae2ab983129fb037999f264ba9a7',
+      };
+
+      writeFileSync(join(testDir, MANIFEST_FILENAME), JSON.stringify(validManifest));
+
+      const result = readManifest(testDir);
+
+      expect(result).toEqual(validManifest);
+    });
   });
 
   describe('hasManifest', () => {

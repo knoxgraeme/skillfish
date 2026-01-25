@@ -342,6 +342,7 @@ function collectTrackedSkills(agents: readonly Agent[]): TrackedSkill[] {
 
 /**
  * Check which tracked skills have updates available.
+ * Caches tree SHA lookups to avoid duplicate API calls for skills from the same repo.
  */
 async function checkForUpdates(skills: TrackedSkill[]): Promise<{
   outdated: (TrackedSkill & { remoteSha: string })[];
@@ -352,32 +353,69 @@ async function checkForUpdates(skills: TrackedSkill[]): Promise<{
   const errors: string[] = [];
   let rateLimitHit = false;
 
-  for (const skill of skills) {
-    try {
-      const remoteSha = await fetchTreeSha(
-        skill.manifest.owner,
-        skill.manifest.repo,
-        skill.manifest.branch,
-      );
+  // Cache tree SHA lookups by owner/repo/branch to avoid duplicate API calls
+  const shaCache = new Map<string, string>();
+  const errorCache = new Map<string, Error>();
 
-      if (skill.manifest.sha !== remoteSha) {
-        outdated.push({ ...skill, remoteSha });
-      }
-    } catch (err) {
-      if (err instanceof RateLimitError) {
-        rateLimitHit = true;
-        break; // Stop checking on rate limit
-      } else if (err instanceof RepoNotFoundError) {
+  for (const skill of skills) {
+    const cacheKey = `${skill.manifest.owner}/${skill.manifest.repo}/${skill.manifest.branch}`;
+
+    // Check if we already have a cached error for this repo
+    const cachedError = errorCache.get(cacheKey);
+    if (cachedError) {
+      if (cachedError instanceof RepoNotFoundError) {
         errors.push(
           `${skill.skill}: Repository not found (${skill.manifest.owner}/${skill.manifest.repo})`,
         );
-      } else if (err instanceof NetworkError) {
-        errors.push(`${skill.skill}: ${err.message}`);
-      } else if (err instanceof GitHubApiError) {
-        errors.push(`${skill.skill}: ${err.message}`);
+      } else if (cachedError instanceof NetworkError) {
+        errors.push(`${skill.skill}: ${cachedError.message}`);
+      } else if (cachedError instanceof GitHubApiError) {
+        errors.push(`${skill.skill}: ${cachedError.message}`);
       } else {
-        errors.push(`${skill.skill}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        errors.push(`${skill.skill}: ${cachedError.message}`);
       }
+      continue;
+    }
+
+    // Check if we already have a cached SHA for this repo
+    let remoteSha = shaCache.get(cacheKey);
+
+    if (!remoteSha) {
+      try {
+        remoteSha = await fetchTreeSha(
+          skill.manifest.owner,
+          skill.manifest.repo,
+          skill.manifest.branch,
+        );
+        shaCache.set(cacheKey, remoteSha);
+      } catch (err) {
+        if (err instanceof RateLimitError) {
+          rateLimitHit = true;
+          break; // Stop checking on rate limit
+        }
+
+        // Cache the error for other skills from the same repo
+        if (err instanceof Error) {
+          errorCache.set(cacheKey, err);
+        }
+
+        if (err instanceof RepoNotFoundError) {
+          errors.push(
+            `${skill.skill}: Repository not found (${skill.manifest.owner}/${skill.manifest.repo})`,
+          );
+        } else if (err instanceof NetworkError) {
+          errors.push(`${skill.skill}: ${err.message}`);
+        } else if (err instanceof GitHubApiError) {
+          errors.push(`${skill.skill}: ${err.message}`);
+        } else {
+          errors.push(`${skill.skill}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+        continue;
+      }
+    }
+
+    if (skill.manifest.sha !== remoteSha) {
+      outdated.push({ ...skill, remoteSha });
     }
   }
 
