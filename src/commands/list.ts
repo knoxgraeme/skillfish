@@ -33,7 +33,7 @@ Examples:
   $ skillfish list                        List all installed skills
   $ skillfish list --agent "Claude Code"  List skills for a specific agent
   $ skillfish list --project              List skills in current project
-  $ skillfish list --global               List global skills only`
+  $ skillfish list --global               List global skills only`,
   )
   .action(async (options: ListCommandOptions, command: Command) => {
     const jsonMode = command.parent?.opts().json ?? false;
@@ -67,7 +67,7 @@ Examples:
     function exitWithError(
       message: string,
       exitCode: ExitCode,
-      data: Partial<ListJsonOutput> = {}
+      data: Partial<ListJsonOutput> = {},
     ): never {
       if (jsonMode) {
         addError(message);
@@ -89,7 +89,7 @@ Examples:
       exitWithError(
         'No agents detected. Install Claude Code, Cursor, or another supported agent first.',
         EXIT_CODES.GENERAL_ERROR,
-        { installed: [], agents_detected: [] }
+        { installed: [], agents_detected: [] },
       );
     }
 
@@ -165,7 +165,7 @@ Examples:
         exitWithError(
           `Agent "${agentFilter}" not found. Detected: ${detected.map((a) => a.name).join(', ')}`,
           EXIT_CODES.NOT_FOUND,
-          { installed: [], agents_detected: detected.map((a) => a.name) }
+          { installed: [], agents_detected: detected.map((a) => a.name) },
         );
       }
       const { installed, globalSkills, projectSkills } = collectSkills(found);
@@ -350,7 +350,7 @@ Examples:
       p.outro(pc.dim('No skills installed'));
     } else {
       p.outro(
-        `${pc.cyan(installed.length.toString())} skill${installed.length === 1 ? '' : 's'} total`
+        `${pc.cyan(installed.length.toString())} skill${installed.length === 1 ? '' : 's'} total`,
       );
     }
     process.exit(EXIT_CODES.SUCCESS);

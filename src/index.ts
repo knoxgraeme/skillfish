@@ -41,7 +41,7 @@ Examples:
   $ skillfish list                           Show installed skills
   $ skillfish remove my-skill                Remove a skill
 
-Documentation: https://skill.fish`
+Documentation: https://skill.fish`,
   );
 
 // Store version in options for commands to access

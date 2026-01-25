@@ -155,7 +155,7 @@ export function sleep(ms: number): Promise<void> {
 export async function batchMap<T, R>(
   items: T[],
   fn: (item: T) => Promise<R>,
-  concurrency = 10
+  concurrency = 10,
 ): Promise<R[]> {
   const results: R[] = [];
   let index = 0;

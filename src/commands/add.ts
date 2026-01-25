@@ -75,14 +75,14 @@ Examples:
   $ skillfish add owner/repo --all            Install all skills in repo
   $ skillfish add owner/repo/plugin/skill     Install a specific skill by path
   $ skillfish add owner/repo --path path/to   Install skill at specific path
-  $ skillfish add owner/repo --project        Install to current project only`
+  $ skillfish add owner/repo --project        Install to current project only`,
   )
   .action(
     async (
       repoArg: string,
       skillNameArg: string | undefined,
       options: AddCommandOptions,
-      command: Command
+      command: Command,
     ) => {
       const jsonMode = command.parent?.opts().json ?? false;
       const jsonOutput = createJsonOutput();
@@ -141,7 +141,7 @@ Examples:
         if (!isValidPath(explicitPath)) {
           exitWithError(
             'Invalid --path value. Path must be relative and contain only safe characters.',
-            EXIT_CODES.INVALID_ARGS
+            EXIT_CODES.INVALID_ARGS,
           );
         }
       }
@@ -154,7 +154,7 @@ Examples:
       if (parts.length < 2) {
         exitWithError(
           'Invalid format. Use: owner/repo or owner/repo/path/to/skill',
-          EXIT_CODES.INVALID_ARGS
+          EXIT_CODES.INVALID_ARGS,
         );
       }
 
@@ -168,7 +168,7 @@ Examples:
           if (!isValidName(part)) {
             exitWithError(
               'Invalid path component. Use only alphanumeric characters, dots, hyphens, and underscores.',
-              EXIT_CODES.INVALID_ARGS
+              EXIT_CODES.INVALID_ARGS,
             );
           }
         }
@@ -201,7 +201,7 @@ Examples:
           installAll,
           jsonMode,
           jsonOutput,
-          skillNameArg
+          skillNameArg,
         );
       }
 
@@ -238,7 +238,7 @@ Examples:
         // Non-TTY or JSON mode: use all detected agents
         if (!jsonMode) {
           console.log(
-            `Installing to ${detected.length} agent(s): ${detected.map((a) => a.name).join(', ')}`
+            `Installing to ${detected.length} agent(s): ${detected.map((a) => a.name).join(', ')}`,
           );
         }
         targetAgents = detected;
@@ -352,19 +352,19 @@ Examples:
       console.log();
       if (totalInstalled > 0) {
         p.outro(
-          pc.green(`Done! Installed ${totalInstalled} skill${totalInstalled === 1 ? '' : 's'}`)
+          pc.green(`Done! Installed ${totalInstalled} skill${totalInstalled === 1 ? '' : 's'}`),
         );
       } else if (totalSkipped > 0) {
         p.outro(
           pc.yellow(
-            `Skipped ${totalSkipped} existing skill${totalSkipped === 1 ? '' : 's'} - use --force to overwrite`
-          )
+            `Skipped ${totalSkipped} existing skill${totalSkipped === 1 ? '' : 's'} - use --force to overwrite`,
+          ),
         );
       } else {
         p.outro(pc.yellow('No skills installed'));
       }
       process.exit(EXIT_CODES.SUCCESS);
-    }
+    },
   );
 
 // === Helper Functions ===
@@ -372,13 +372,13 @@ Examples:
 async function selectInstallLocation(
   projectFlag: boolean,
   globalFlag: boolean,
-  jsonMode: boolean
+  jsonMode: boolean,
 ): Promise<string> {
   // If flag specified, use it
   if (projectFlag) {
     if (!jsonMode) {
       p.log.info(
-        `Location: ${pc.cyan('Project')} ${pc.dim('(./')}${pc.dim(AGENT_CONFIGS[0].dir)}${pc.dim(')')}`
+        `Location: ${pc.cyan('Project')} ${pc.dim('(./')}${pc.dim(AGENT_CONFIGS[0].dir)}${pc.dim(')')}`,
       );
     }
     return process.cwd();
@@ -386,7 +386,7 @@ async function selectInstallLocation(
   if (globalFlag) {
     if (!jsonMode) {
       p.log.info(
-        `Location: ${pc.cyan('Global')} ${pc.dim('(~/')}${pc.dim(AGENT_CONFIGS[0].dir)}${pc.dim(')')}`
+        `Location: ${pc.cyan('Global')} ${pc.dim('(~/')}${pc.dim(AGENT_CONFIGS[0].dir)}${pc.dim(')')}`,
       );
     }
     return homedir();
@@ -425,14 +425,14 @@ async function selectInstallLocation(
 async function selectAgents(
   agents: readonly Agent[],
   isLocal: boolean,
-  jsonMode: boolean
+  jsonMode: boolean,
 ): Promise<readonly Agent[]> {
   const pathPrefix = isLocal ? '.' : '~';
 
   // Show detected agents
   if (!jsonMode) {
     p.log.info(
-      `Detected ${pc.cyan(agents.length.toString())} agent${agents.length === 1 ? '' : 's'}: ${agents.map((a) => a.name).join(', ')}`
+      `Detected ${pc.cyan(agents.length.toString())} agent${agents.length === 1 ? '' : 's'}: ${agents.map((a) => a.name).join(', ')}`,
     );
   }
 
@@ -477,7 +477,7 @@ async function discoverSkillPaths(
   installAll: boolean,
   jsonMode: boolean,
   jsonOutput: AddJsonOutput,
-  targetSkillName?: string
+  targetSkillName?: string,
 ): Promise<{ paths: string[]; branch: string } | null> {
   let skillDiscovery: SkillDiscoveryResult;
 
@@ -550,12 +550,12 @@ async function discoverSkillPaths(
         description: frontmatter.description || '',
       };
     },
-    10
+    10,
   );
 
   if (spinner) {
     spinner.stop(
-      `Found ${pc.cyan(skills.length.toString())} skill${skills.length === 1 ? '' : 's'}`
+      `Found ${pc.cyan(skills.length.toString())} skill${skills.length === 1 ? '' : 's'}`,
     );
   }
 
@@ -648,7 +648,7 @@ async function discoverSkillPaths(
         console.log(`  - ${pc.cyan(skill.name)} ${displayName}${desc}`);
       }
       console.error(
-        '\nMultiple skills found. Specify skill name, use --path, or --all (non-interactive mode).'
+        '\nMultiple skills found. Specify skill name, use --path, or --all (non-interactive mode).',
       );
     }
     return null;
@@ -677,7 +677,7 @@ async function discoverSkillPaths(
 async function confirmInstallBatch(
   owner: string,
   repo: string,
-  skillNames: string[]
+  skillNames: string[],
 ): Promise<boolean> {
   console.log();
   p.log.warn(pc.yellow('Skills can instruct AI agents to perform actions on your behalf.'));

@@ -100,7 +100,7 @@ export function safeCopyDir(src: string, dest: string): CopyResult {
         } catch (err) {
           // File may have been removed/changed between readdir and copy
           warnings.push(
-            `Could not copy ${entry.name}: ${err instanceof Error ? err.message : 'unknown error'}`
+            `Could not copy ${entry.name}: ${err instanceof Error ? err.message : 'unknown error'}`,
           );
         }
       }
@@ -128,7 +128,7 @@ export async function installSkill(
   skillPath: string,
   skillName: string,
   agents: readonly Agent[],
-  options: InstallOptions
+  options: InstallOptions,
 ): Promise<InstallResult> {
   const result: InstallResult = {
     installed: [],

@@ -28,7 +28,7 @@ export interface SkillDiscoveryResult {
 export class RateLimitError extends Error {
   constructor(public resetTime?: Date) {
     super(
-      `GitHub API rate limit exceeded${resetTime ? `. Resets at ${resetTime.toISOString()}` : '. Please try again later.'}`
+      `GitHub API rate limit exceeded${resetTime ? `. Resets at ${resetTime.toISOString()}` : '. Please try again later.'}`,
     );
     this.name = 'RateLimitError';
   }
@@ -40,7 +40,7 @@ export class RateLimitError extends Error {
 export class RepoNotFoundError extends Error {
   constructor(
     public owner: string,
-    public repo: string
+    public repo: string,
   ) {
     super(`Repository not found: ${owner}/${repo}. Check the owner/repo name.`);
     this.name = 'RepoNotFoundError';
@@ -158,7 +158,7 @@ export async function fetchDefaultBranch(owner: string, repo: string): Promise<s
 export async function fetchWithRetry(
   url: string,
   options: RequestInit,
-  maxRetries: number = MAX_RETRIES
+  maxRetries: number = MAX_RETRIES,
 ): Promise<Response> {
   let lastError: Error | null = null;
 
@@ -203,7 +203,7 @@ export async function fetchSkillMdContent(
   owner: string,
   repo: string,
   path: string,
-  branch: string
+  branch: string,
 ): Promise<string | null> {
   const headers = { 'User-Agent': 'skillfish' };
   const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
@@ -229,7 +229,7 @@ export async function fetchSkillMdContent(
  */
 export async function findAllSkillMdFiles(
   owner: string,
-  repo: string
+  repo: string,
 ): Promise<SkillDiscoveryResult> {
   const headers: Record<string, string> = { 'User-Agent': 'skillfish' };
 

@@ -50,7 +50,7 @@ Examples:
   $ skillfish remove my-skill           Remove a skill by name
   $ skillfish remove --all              Remove all installed skills
   $ skillfish remove my-skill --project Remove from current project only
-  $ skillfish remove my-skill --agent "Claude Code"  Remove from specific agent`
+  $ skillfish remove my-skill --agent "Claude Code"  Remove from specific agent`,
   )
   .action(async (skillArg: string | undefined, options: RemoveCommandOptions, command: Command) => {
     const jsonMode = command.parent?.opts().json ?? false;
@@ -117,7 +117,7 @@ Examples:
       exitWithError(
         'No agents detected. Install Claude Code, Cursor, or another supported agent first.',
         EXIT_CODES.GENERAL_ERROR,
-        true // useClackLog
+        true, // useClackLog
       );
     }
 
@@ -129,7 +129,7 @@ Examples:
         exitWithError(
           `Agent "${targetAgentName}" not found. Detected agents: ${detected.map((a) => a.name).join(', ')}`,
           EXIT_CODES.NOT_FOUND,
-          true // useClackLog
+          true, // useClackLog
         );
       }
       targetAgents = found;
@@ -181,7 +181,7 @@ Examples:
             });
             if (!jsonMode) {
               console.log(
-                `  ${pc.green('✓')} Removed ${item.skill} ${pc.dim(`from ${item.agent.name}`)}`
+                `  ${pc.green('✓')} Removed ${item.skill} ${pc.dim(`from ${item.agent.name}`)}`,
               );
             }
           }
@@ -232,7 +232,7 @@ Examples:
       if (!isInputTTY() || jsonMode) {
         exitWithError(
           'Please specify a skill name or use --all to remove all skills (non-interactive mode)',
-          EXIT_CODES.INVALID_ARGS
+          EXIT_CODES.INVALID_ARGS,
         );
       }
 
@@ -350,8 +350,8 @@ Examples:
       if (result.removed.length > 0) {
         p.outro(
           pc.green(
-            `Done! Removed ${result.removed.length} skill${result.removed.length === 1 ? '' : 's'}`
-          )
+            `Done! Removed ${result.removed.length} skill${result.removed.length === 1 ? '' : 's'}`,
+          ),
         );
       } else {
         p.outro(pc.yellow('No skills removed'));
@@ -388,7 +388,7 @@ Examples:
       p.log.warn(pc.yellow('The following skills will be removed:'));
       for (const item of skillsToRemove) {
         console.log(
-          `  ${pc.red('•')} ${item.skill} ${pc.dim(`(${item.agent.name}, ${item.location})`)}`
+          `  ${pc.red('•')} ${item.skill} ${pc.dim(`(${item.agent.name}, ${item.location})`)}`,
         );
       }
       console.log();
@@ -416,8 +416,8 @@ Examples:
     if (result.removed.length > 0) {
       p.outro(
         pc.green(
-          `Done! Removed ${result.removed.length} skill${result.removed.length === 1 ? '' : 's'}`
-        )
+          `Done! Removed ${result.removed.length} skill${result.removed.length === 1 ? '' : 's'}`,
+        ),
       );
     } else {
       p.outro(pc.yellow('No skills removed'));

@@ -1,7 +1,2 @@
-# Default owner for everything
+# All files owned by maintainer
 * @knoxgraeme
-
-# Protect critical files
-/.github/ @knoxgraeme
-/package.json @knoxgraeme
-/package-lock.json @knoxgraeme

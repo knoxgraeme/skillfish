@@ -93,7 +93,7 @@ describe('fetchWithRetry', () => {
       .mockRejectedValueOnce(networkError);
 
     await expect(fetchWithRetry('https://api.example.com', {}, 3)).rejects.toThrow(
-      'Connection refused'
+      'Connection refused',
     );
     expect(mockFetch).toHaveBeenCalledTimes(3);
   });
@@ -164,7 +164,7 @@ describe('findAllSkillMdFiles', () => {
     mockFetch
       .mockResolvedValueOnce(new Response(JSON.stringify(repoResponse), { status: 200 })) // repo metadata
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ tree: 'not-an-array' }), { status: 200 })
+        new Response(JSON.stringify({ tree: 'not-an-array' }), { status: 200 }),
       ); // malformed tree
 
     await expect(findAllSkillMdFiles('owner', 'repo')).rejects.toThrow(GitHubApiError);
@@ -175,7 +175,7 @@ describe('findAllSkillMdFiles', () => {
     mockFetch
       .mockResolvedValueOnce(new Response(JSON.stringify(repoResponse), { status: 200 })) // repo metadata
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ tree: [{ invalid: true }] }), { status: 200 })
+        new Response(JSON.stringify({ tree: [{ invalid: true }] }), { status: 200 }),
       ); // invalid tree
 
     await expect(findAllSkillMdFiles('owner', 'repo')).rejects.toThrow(GitHubApiError);

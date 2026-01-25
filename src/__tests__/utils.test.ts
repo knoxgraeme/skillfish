@@ -181,7 +181,7 @@ describe('truncate', () => {
 
   it('truncates long text with ellipsis', () => {
     expect(truncate('This is a long description that needs truncation', 20)).toBe(
-      'This is a long desc…'
+      'This is a long desc…',
     );
   });
 
