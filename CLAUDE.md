@@ -78,3 +78,14 @@ Add entry to `AGENT_CONFIGS` in `src/lib/agents.ts`:
 ## Testing
 
 Tests are in `src/__tests__/`. Tests focus on pure utility functions. Use Vitest assertions. Test files follow `*.test.ts` naming convention.
+
+## Maintaining This File
+
+Update CLAUDE.md when:
+- Adding new commands (`src/commands/`)
+- Adding new library modules (`src/lib/`)
+- Changing exit codes or error handling patterns
+- Modifying agent detection logic or adding new agents
+- Adding new npm scripts
+
+Keep this file focused on architecture and patterns. User-facing documentation belongs in README.md.
