@@ -243,6 +243,26 @@ export interface UpdateJsonOutput extends BaseJsonOutput {
   updated: InstalledSkill[];
 }
 
+/**
+ * Submitted skill information for submit command.
+ */
+export interface SubmittedSkill {
+  skill_name: string;
+  skill_url: string;
+  owner: string;
+  repo: string;
+  path: string;
+}
+
+/**
+ * JSON output for the `submit` command.
+ */
+export interface SubmitJsonOutput extends BaseJsonOutput {
+  submitted: SubmittedSkill[];
+  failed: { skill_name: string; reason: string }[];
+  skills_found: string[];
+}
+
 /** @deprecated Use AddJsonOutput instead */
 export type JsonOutput = AddJsonOutput;
 
