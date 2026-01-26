@@ -1,6 +1,6 @@
 {
   "name": "skillfish",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "Install AI agent skills from GitHub with a single command",
   "type": "module",
   "bin": {
