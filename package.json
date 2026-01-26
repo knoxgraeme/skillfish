@@ -71,11 +71,13 @@
     "@clack/prompts": "^0.11.0",
     "commander": "^14.0.2",
     "giget": "^3.1.1",
-    "picocolors": "^1.1.1"
+    "picocolors": "^1.1.1",
+    "update-notifier": "^7.3.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "@types/node": "^20.0.0",
+    "@types/update-notifier": "^6.0.8",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "husky": "^9.1.7",

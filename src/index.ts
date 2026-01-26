@@ -9,6 +9,7 @@ import { Command } from 'commander';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import updateNotifier from 'update-notifier';
 import { addCommand } from './commands/add.js';
 import { listCommand } from './commands/list.js';
 import { removeCommand } from './commands/remove.js';
@@ -17,6 +18,9 @@ import { updateCommand } from './commands/update.js';
 // Read version from package.json (single source of truth)
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'));
+
+// Check for updates (runs in background, non-blocking)
+const notifier = updateNotifier({ pkg });
 
 const program = new Command()
   .name('skillfish')
@@ -62,7 +66,17 @@ program.on('option:json', () => {
 });
 
 // Parse and run
-program.parseAsync(process.argv).catch((err) => {
-  console.error('Error:', err instanceof Error ? err.message : String(err));
-  process.exit(1);
-});
+program
+  .parseAsync(process.argv)
+  .then(() => {
+    // Show update notification after command completes (if update available)
+    notifier.notify({
+      message: `Update available: {currentVersion} → {latestVersion}
+Run: npx skillfish@latest
+Or:  npm i -g skillfish`,
+    });
+  })
+  .catch((err) => {
+    console.error('Error:', err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  });
