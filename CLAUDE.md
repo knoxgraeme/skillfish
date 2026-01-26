@@ -20,6 +20,13 @@ npm link               # Link for local testing, then run: skillfish add owner/r
 npm test               # Run all tests once
 npm run test:watch     # Watch mode
 npx vitest run src/__tests__/utils.test.ts  # Run a single test file
+
+# Code Quality
+npm run lint           # Run ESLint
+npm run lint:fix       # Run ESLint with auto-fix
+npm run format         # Format with Prettier
+npm run format:check   # Check formatting
+npm run typecheck      # TypeScript type checking
 ```
 
 ## Architecture
@@ -30,13 +37,15 @@ npx vitest run src/__tests__/utils.test.ts  # Run a single test file
 - `src/commands/add.ts` - Install skills from GitHub repos
 - `src/commands/list.ts` - List installed skills
 - `src/commands/remove.ts` - Remove installed skills
+- `src/commands/update.ts` - Check for and apply updates to installed skills
 
 ### Core Libraries
 
 - `src/lib/agents.ts` - Agent detection and configuration (AGENT_CONFIGS array defines all supported agents with their detection paths and skill directories)
 - `src/lib/github.ts` - GitHub API functions (tree fetching, rate limit handling, retry logic with exponential backoff)
 - `src/lib/installer.ts` - Skill installation logic (downloads via giget tarball, validates SKILL.md exists, copies to agent directories)
-- `src/lib/constants.ts` - Exit codes and error codes for structured output
+- `src/lib/manifest.ts` - Skill manifest handling (reads/writes .skillfish-manifest.json for tracking installed skill versions)
+- `src/lib/constants.ts` - Exit codes (EXIT_CODES), machine-readable error codes (ERROR_CODES) for JSON output, and name validation utilities
 
 ### Utilities
 
@@ -49,7 +58,7 @@ npx vitest run src/__tests__/utils.test.ts  # Run a single test file
 
 **Dual Output Modes**: All commands support both interactive (TTY with @clack/prompts) and JSON modes (--json flag). JSON output includes structured exit_code and error arrays.
 
-**Security**: Path validation prevents directory traversal attacks. Symlinks are skipped during copy operations. User confirmation is required before installation (bypass with --yes).
+**Security**: Path validation prevents directory traversal attacks. Name validation (`isValidName()`) ensures owner/repo/skill names only contain safe characters. Symlinks are skipped during copy operations. User confirmation is required before installation (bypass with --yes).
 
 **Exit Codes**: 0=success, 1=general error, 2=invalid args, 3=network error, 4=not found
 
