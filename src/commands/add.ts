@@ -633,11 +633,11 @@ async function discoverSkillPaths(
   }
 
   // Build options for selection with frontmatter metadata
-  // Title in label, description in hint (shows on focus)
+  // Title in label, truncated description in hint (keeps UI clean)
   const optionsList = skills.map((skill) => ({
     value: skill.dir,
     label: pc.bold(toTitleCase(skill.name)),
-    hint: skill.description || undefined,
+    hint: skill.description ? truncate(skill.description, 70) : undefined,
   }));
 
   // Non-TTY or JSON mode: require --all or --path for multiple skills
