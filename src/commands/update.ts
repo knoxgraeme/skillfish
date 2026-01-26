@@ -11,12 +11,14 @@ import { getDetectedAgents, getAgentSkillDir, type Agent } from '../lib/agents.j
 import { listInstalledSkillsInDir, installSkill } from '../lib/installer.js';
 import { readManifest, type SkillManifest } from '../lib/manifest.js';
 import {
-  fetchTreeSha,
+  fetchRecursiveTree,
+  getSkillSha,
   RateLimitError,
   RepoNotFoundError,
   NetworkError,
   GitHubApiError,
 } from '../lib/github.js';
+import type { GitTreeItem } from '../utils.js';
 import { EXIT_CODES, type ExitCode } from '../lib/constants.js';
 import { isInputTTY, isTTY, type UpdateJsonOutput } from '../utils.js';
 
@@ -342,7 +344,8 @@ function collectTrackedSkills(agents: readonly Agent[]): TrackedSkill[] {
 
 /**
  * Check which tracked skills have updates available.
- * Caches tree SHA lookups to avoid duplicate API calls for skills from the same repo.
+ * Caches recursive tree lookups to avoid duplicate API calls for skills from the same repo.
+ * Uses directory-level SHA comparison for accurate change detection.
  */
 async function checkForUpdates(skills: TrackedSkill[]): Promise<{
   outdated: (TrackedSkill & { remoteSha: string })[];
@@ -353,8 +356,8 @@ async function checkForUpdates(skills: TrackedSkill[]): Promise<{
   const errors: string[] = [];
   let rateLimitHit = false;
 
-  // Cache tree SHA lookups by owner/repo/branch to avoid duplicate API calls
-  const shaCache = new Map<string, string>();
+  // Cache full tree lookups by owner/repo/branch to avoid duplicate API calls
+  const treeCache = new Map<string, { rootSha: string; tree: GitTreeItem[] }>();
   const errorCache = new Map<string, Error>();
 
   for (const skill of skills) {
@@ -377,17 +380,18 @@ async function checkForUpdates(skills: TrackedSkill[]): Promise<{
       continue;
     }
 
-    // Check if we already have a cached SHA for this repo
-    let remoteSha = shaCache.get(cacheKey);
+    // Check if we already have a cached tree for this repo
+    let cached = treeCache.get(cacheKey);
 
-    if (!remoteSha) {
+    if (!cached) {
       try {
-        remoteSha = await fetchTreeSha(
+        const { sha, tree } = await fetchRecursiveTree(
           skill.manifest.owner,
           skill.manifest.repo,
           skill.manifest.branch,
         );
-        shaCache.set(cacheKey, remoteSha);
+        cached = { rootSha: sha, tree };
+        treeCache.set(cacheKey, cached);
       } catch (err) {
         if (err instanceof RateLimitError) {
           rateLimitHit = true;
@@ -413,6 +417,10 @@ async function checkForUpdates(skills: TrackedSkill[]): Promise<{
         continue;
       }
     }
+
+    // Get directory-specific SHA for accurate change detection
+    // Falls back to root SHA for backward compatibility with old manifests
+    const remoteSha = getSkillSha(cached.tree, skill.manifest.path) ?? cached.rootSha;
 
     if (skill.manifest.sha !== remoteSha) {
       outdated.push({ ...skill, remoteSha });
