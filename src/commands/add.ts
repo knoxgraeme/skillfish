@@ -633,11 +633,10 @@ async function discoverSkillPaths(
   }
 
   // Build options for selection with frontmatter metadata
-  // Title in label, truncated description in hint (keeps UI clean)
+  // No hints - @clack/prompts has rendering issues with long option lists
   const optionsList = skills.map((skill) => ({
     value: skill.dir,
-    label: pc.bold(toTitleCase(skill.name)),
-    hint: skill.description ? truncate(skill.description, 70) : undefined,
+    label: toTitleCase(skill.name),
   }));
 
   // Non-TTY or JSON mode: require --all or --path for multiple skills
