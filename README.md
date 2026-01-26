@@ -20,7 +20,13 @@
 ## Quick Start
 
 ```bash
+# One-off skill installation
 npx skillfish add owner/repo
+
+# For ongoing skill management, install globally
+npm i -g skillfish
+skillfish list
+skillfish update
 ```
 
 One command installs to **all detected agents** on your system.
@@ -52,11 +58,11 @@ All commands support `--json` for automation.
 ## Examples
 
 ```bash
-npx skillfish add user/my-skill          # Install a skill
-npx skillfish add owner/repo --all       # Install all skills from repo
-npx skillfish list                       # See what's installed
-npx skillfish update                     # Update all skills
-npx skillfish remove old-skill           # Remove a skill
+skillfish add user/my-skill          # Install a skill
+skillfish add owner/repo --all       # Install all skills from repo
+skillfish list                       # See what's installed
+skillfish update                     # Update all skills
+skillfish remove old-skill           # Remove a skill
 ```
 
 ## Supported Agents
@@ -99,15 +105,15 @@ Works with 17+ agents including:
 Install skills from a repository.
 
 ```bash
-npx skillfish add owner/repo                    # Auto-discover SKILL.md
-npx skillfish add owner/repo my-skill           # Install by skill name
-npx skillfish add owner/repo/path/to/skill      # Full path syntax
-npx skillfish add owner/repo --path skills/foo  # Explicit path
-npx skillfish add owner/repo --all              # Install all skills
-npx skillfish add owner/repo --force            # Overwrite existing
-npx skillfish add owner/repo --yes              # Skip confirmation
-npx skillfish add owner/repo --project          # Project only (./)
-npx skillfish add owner/repo --global           # Global only (~/)
+skillfish add owner/repo                    # Auto-discover SKILL.md
+skillfish add owner/repo my-skill           # Install by skill name
+skillfish add owner/repo/path/to/skill      # Full path syntax
+skillfish add owner/repo --path skills/foo  # Explicit path
+skillfish add owner/repo --all              # Install all skills
+skillfish add owner/repo --force            # Overwrite existing
+skillfish add owner/repo --yes              # Skip confirmation
+skillfish add owner/repo --project          # Project only (./)
+skillfish add owner/repo --global           # Global only (~/)
 ```
 
 ### list
@@ -115,10 +121,10 @@ npx skillfish add owner/repo --global           # Global only (~/)
 View installed skills.
 
 ```bash
-npx skillfish list                       # List all installed skills
-npx skillfish list --global              # Global skills only (~/)
-npx skillfish list --project             # Project skills only (./)
-npx skillfish list --agent "Claude Code" # Specific agent
+skillfish list                       # List all installed skills
+skillfish list --global              # Global skills only (~/)
+skillfish list --project             # Project skills only (./)
+skillfish list --agent "Claude Code" # Specific agent
 ```
 
 ### remove
@@ -126,13 +132,13 @@ npx skillfish list --agent "Claude Code" # Specific agent
 Remove installed skills.
 
 ```bash
-npx skillfish remove                          # Interactive picker
-npx skillfish remove my-skill                 # By name
-npx skillfish remove --all                    # Remove all
-npx skillfish remove my-skill --project       # Project only
-npx skillfish remove my-skill --global        # Global only
-npx skillfish remove my-skill --agent "Cursor" # Specific agent
-npx skillfish remove my-skill --yes           # Skip confirmation
+skillfish remove                          # Interactive picker
+skillfish remove my-skill                 # By name
+skillfish remove --all                    # Remove all
+skillfish remove my-skill --project       # Project only
+skillfish remove my-skill --global        # Global only
+skillfish remove my-skill --agent "Cursor" # Specific agent
+skillfish remove my-skill --yes           # Skip confirmation
 ```
 
 ### update
@@ -140,9 +146,9 @@ npx skillfish remove my-skill --yes           # Skip confirmation
 Update installed skills to latest version.
 
 ```bash
-npx skillfish update                     # Check for updates interactively
-npx skillfish update --yes               # Update all without prompting
-npx skillfish update --json              # Check for updates (JSON output)
+skillfish update                     # Check for updates interactively
+skillfish update --yes               # Update all without prompting
+skillfish update --json              # Check for updates (JSON output)
 ```
 
 <details>
