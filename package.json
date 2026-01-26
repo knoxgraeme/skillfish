@@ -1,7 +1,7 @@
 {
   "name": "skillfish",
   "version": "1.0.13",
-  "description": "Install AI agent skills from GitHub with a single command",
+  "description": "All in one Skill manager for AI coding agents. Install, update, and sync Skills across Claude Code, Cursor, Copilot + more.",
   "type": "module",
   "bin": {
     "skillfish": "dist/index.js"
