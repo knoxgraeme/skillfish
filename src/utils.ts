@@ -243,6 +243,14 @@ export interface UpdateJsonOutput extends BaseJsonOutput {
   updated: InstalledSkill[];
 }
 
+/**
+ * JSON output for the `init` command.
+ */
+export interface InitJsonOutput extends BaseJsonOutput {
+  created: { skill: string; agent: string; path: string }[];
+  skipped: { skill: string; agent: string; reason: string }[];
+}
+
 /** @deprecated Use AddJsonOutput instead */
 export type JsonOutput = AddJsonOutput;
 
