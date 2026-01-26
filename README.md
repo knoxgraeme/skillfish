@@ -23,10 +23,8 @@
 # One-off skill installation
 npx skillfish add owner/repo
 
-# For ongoing skill management, install globally
+# For skill management (list, update, remove), install globally
 npm i -g skillfish
-skillfish list
-skillfish update
 ```
 
 One command installs to **all detected agents** on your system.
