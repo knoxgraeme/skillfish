@@ -56,7 +56,7 @@ All commands support `--json` for automation.
 ## Examples
 
 ```bash
-skillfish add user/my-skill          # Install a skill
+skillfish add owner/repo             # Install from a repository
 skillfish add owner/repo --all       # Install all skills from repo
 skillfish list                       # See what's installed
 skillfish update                     # Update all skills
