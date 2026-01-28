@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import updateNotifier from 'update-notifier';
 import { addCommand } from './commands/add.js';
+import { initCommand } from './commands/init.js';
 import { listCommand } from './commands/list.js';
 import { removeCommand } from './commands/remove.js';
 import { updateCommand } from './commands/update.js';
@@ -43,6 +44,7 @@ const program = new Command()
 Examples:
   $ skillfish add owner/repo                 Install skills from a repository
   $ skillfish add owner/repo/plugin/skill    Install a specific skill
+  $ skillfish init                           Create a new skill template
   $ skillfish list                           Show installed skills
   $ skillfish remove my-skill                Remove a skill
 
@@ -56,6 +58,7 @@ program.hook('preAction', (thisCommand) => {
 
 // Add subcommands
 program.addCommand(addCommand);
+program.addCommand(initCommand);
 program.addCommand(listCommand);
 program.addCommand(removeCommand);
 program.addCommand(updateCommand);
