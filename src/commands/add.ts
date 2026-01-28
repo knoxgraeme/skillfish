@@ -7,6 +7,7 @@ import { homedir } from 'os';
 import { dirname, basename } from 'path';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
+import { printBanner } from '../lib/banner.js';
 import { trackInstall } from '../telemetry.js';
 import {
   isValidPath,
@@ -124,11 +125,7 @@ Examples:
 
       // Show banner and intro (TTY only, not in JSON mode)
       if (isTTY() && !jsonMode) {
-        console.log();
-        console.log(pc.cyan('     ≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋'));
-        console.log(`       ${pc.cyan('><>')}  ${pc.bold('SKILL FISH')}  ${pc.cyan('><>')}`);
-        console.log(pc.cyan('     ≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋'));
-        console.log();
+        printBanner();
         p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim(`v${version}`)}`);
       }
 

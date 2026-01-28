@@ -8,6 +8,7 @@ import { join } from 'path';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
+import { printBanner } from '../lib/banner.js';
 import { getDetectedAgents, getAgentSkillDir, type Agent } from '../lib/agents.js';
 import { SKILL_FILENAME } from '../lib/github.js';
 import { EXIT_CODES, type ExitCode } from '../lib/constants.js';
@@ -208,11 +209,7 @@ Examples:
 
     // Show banner and intro (TTY only, not in JSON mode)
     if (isTTY() && !jsonMode) {
-      console.log();
-      console.log(pc.cyan('     ≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋'));
-      console.log(`       ${pc.cyan('><>')}  ${pc.bold('SKILL FISH')}  ${pc.cyan('><>')}`);
-      console.log(pc.cyan('     ≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋'));
-      console.log();
+      printBanner();
       p.intro(
         `${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim(`v${version}`)} ${pc.dim('· Create a skill')}`,
       );
