@@ -10,6 +10,7 @@ import { randomUUID } from 'crypto';
 import { downloadTemplate } from 'giget';
 import type { Agent } from './agents.js';
 import { SKILL_FILENAME } from './github.js';
+import { writeManifest, type SkillManifest, MANIFEST_VERSION } from './manifest.js';
 
 // === Types ===
 
@@ -26,6 +27,8 @@ export interface InstallOptions {
   baseDir: string;
   /** Branch to clone from. If not specified, giget will use the repository's default branch. */
   branch?: string;
+  /** Tree SHA for manifest tracking. If provided, .skillfish.json will be written. */
+  sha?: string;
 }
 
 /**
@@ -137,7 +140,7 @@ export async function installSkill(
     failed: false,
   };
 
-  const { force, baseDir, branch } = options;
+  const { force, baseDir, branch, sha } = options;
 
   const tmpDir = join(homedir(), '.cache', 'skillfish', `${owner}-${repo}-${randomUUID()}`);
   mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
@@ -192,6 +195,19 @@ export async function installSkill(
       // Use safe copy to skip symlinks (security: prevents symlink attacks)
       const copyResult = safeCopyDir(tmpDir, destDir);
       result.warnings.push(...copyResult.warnings.map((w) => `${skillName}: ${w}`));
+
+      // Write manifest for tracking if SHA is provided
+      if (sha && branch) {
+        const manifest: SkillManifest = {
+          version: MANIFEST_VERSION,
+          owner,
+          repo,
+          path: skillPath === SKILL_FILENAME ? '.' : skillPath,
+          branch,
+          sha,
+        };
+        writeManifest(destDir, manifest);
+      }
 
       result.installed.push({
         skill: skillName,

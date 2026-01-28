@@ -222,6 +222,35 @@ export interface RemoveJsonOutput extends BaseJsonOutput {
   removed: InstalledSkill[];
 }
 
+/**
+ * Outdated skill information for update command.
+ */
+export interface OutdatedSkill {
+  skill: string;
+  agent: string;
+  path: string;
+  location: 'global' | 'project';
+  localSha: string;
+  remoteSha: string;
+  source: string; // "owner/repo"
+}
+
+/**
+ * JSON output for the `update` command.
+ */
+export interface UpdateJsonOutput extends BaseJsonOutput {
+  outdated: OutdatedSkill[];
+  updated: InstalledSkill[];
+}
+
+/**
+ * JSON output for the `init` command.
+ */
+export interface InitJsonOutput extends BaseJsonOutput {
+  created: { skill: string; agent: string; path: string }[];
+  skipped: { skill: string; agent: string; reason: string }[];
+}
+
 /** @deprecated Use AddJsonOutput instead */
 export type JsonOutput = AddJsonOutput;
 

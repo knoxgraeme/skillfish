@@ -73,20 +73,6 @@ Include:
 - Steps to reproduce
 - Expected vs actual behavior
 
-## Developer Certificate of Origin
-
-This project uses the [Developer Certificate of Origin](https://developercertificate.org/) (DCO).
-
-By making a contribution, you certify that you have the right to submit it under the project's license.
-
-Sign your commits with `-s`:
-
-```bash
-git commit -s -m "feat: add new agent support"
-```
-
-This adds a `Signed-off-by` line to your commit message.
-
 ## First-Time Contributors
 
 Welcome! We're excited to have you.

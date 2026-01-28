@@ -1,7 +1,7 @@
 {
   "name": "skillfish",
-  "version": "1.0.8",
-  "description": "Install AI agent skills from GitHub with a single command",
+  "version": "1.0.17",
+  "description": "All in one Skill manager for AI coding agents. Install, update, and sync Skills across Claude Code, Cursor, Copilot + more.",
   "type": "module",
   "bin": {
     "skillfish": "dist/index.js"
@@ -71,16 +71,19 @@
     "@clack/prompts": "^0.11.0",
     "commander": "^14.0.2",
     "giget": "^3.1.1",
-    "picocolors": "^1.1.1"
+    "picocolors": "^1.1.1",
+    "update-notifier": "^7.3.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
-    "@types/node": "^20.0.0",
+    "@types/node": "^25.0.10",
+    "@types/update-notifier": "^6.0.8",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "prettier": "^3.8.1",
+    "tsx": "^4.21.0",
     "typescript": "^5.4.0",
     "typescript-eslint": "^8.53.1",
     "vitest": "^4.0.17"

@@ -2,7 +2,7 @@
  * GitHub API functions for skill discovery and fetching.
  */
 
-import { isGitTreeResponse, extractSkillPaths, sleep } from '../utils.js';
+import { isGitTreeResponse, extractSkillPaths, sleep, type GitTreeItem } from '../utils.js';
 
 // === Constants ===
 const API_TIMEOUT_MS = 10000;
@@ -13,11 +13,38 @@ export const SKILL_FILENAME = 'SKILL.md';
 // === Types ===
 
 /**
- * Result of skill discovery including branch information.
+ * Result of skill discovery including branch and SHA information.
  */
 export interface SkillDiscoveryResult {
   paths: string[];
   branch: string;
+  /** Root tree SHA from git/trees response - changes when any file in repo changes */
+  sha: string;
+  /** Raw tree items for directory-level SHA lookups */
+  tree: GitTreeItem[];
+}
+
+// === Helper Functions ===
+
+/**
+ * Get the SHA for a skill path from a git tree.
+ * - For subdirectory skills: returns the directory's tree SHA
+ * - For root-level skills: returns the SKILL.md blob SHA
+ *
+ * This enables directory-level change detection instead of repo-level,
+ * reducing false "outdated" notifications when unrelated files change.
+ */
+export function getSkillSha(tree: GitTreeItem[], skillPath: string): string | undefined {
+  // Root-level skill - use the blob SHA of SKILL.md itself
+  if (skillPath === SKILL_FILENAME) {
+    const blob = tree.find((item) => item.path === SKILL_FILENAME && item.type === 'blob');
+    return blob?.sha;
+  }
+
+  // Subdirectory skill - use the directory's tree SHA
+  const dirPath = skillPath.replace(/\/SKILL\.md$/, '');
+  const dir = tree.find((item) => item.path === dirPath && item.type === 'tree');
+  return dir?.sha;
 }
 
 // === Error Types ===
@@ -218,6 +245,102 @@ export async function fetchSkillMdContent(
 }
 
 /**
+ * Fetch the tree SHA for a repository branch.
+ * Used for update checks - compares stored SHA with current SHA.
+ *
+ * @throws {RepoNotFoundError} When the repository is not found
+ * @throws {RateLimitError} When GitHub API rate limit is exceeded
+ * @throws {NetworkError} On network errors
+ * @throws {GitHubApiError} When the API response format is unexpected
+ */
+export async function fetchTreeSha(owner: string, repo: string, branch: string): Promise<string> {
+  const headers: Record<string, string> = { 'User-Agent': 'skillfish' };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
+  try {
+    const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}`;
+    const res = await fetchWithRetry(url, { headers, signal: controller.signal });
+
+    checkRateLimit(res);
+
+    if (res.status === 404) {
+      throw new RepoNotFoundError(owner, repo);
+    }
+
+    if (!res.ok) {
+      throw new GitHubApiError(`GitHub API returned status ${res.status}`);
+    }
+
+    const data = (await res.json()) as { sha?: string };
+    if (typeof data.sha !== 'string' || !/^[a-f0-9]{40}$/.test(data.sha)) {
+      throw new GitHubApiError('Invalid or missing sha field in tree response');
+    }
+
+    return data.sha;
+  } catch (err: unknown) {
+    wrapApiError(err);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
+ * Fetch the recursive tree for a repository branch.
+ * Returns both the root SHA and the full tree for directory-level SHA lookups.
+ *
+ * @throws {RepoNotFoundError} When the repository is not found
+ * @throws {RateLimitError} When GitHub API rate limit is exceeded
+ * @throws {NetworkError} On network errors
+ * @throws {GitHubApiError} When the API response format is unexpected
+ */
+export async function fetchRecursiveTree(
+  owner: string,
+  repo: string,
+  branch: string,
+): Promise<{ sha: string; tree: GitTreeItem[] }> {
+  const headers: Record<string, string> = { 'User-Agent': 'skillfish' };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
+  try {
+    const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
+    const res = await fetchWithRetry(url, { headers, signal: controller.signal });
+
+    checkRateLimit(res);
+
+    if (res.status === 404) {
+      throw new RepoNotFoundError(owner, repo);
+    }
+
+    if (!res.ok) {
+      throw new GitHubApiError(`GitHub API returned status ${res.status}`);
+    }
+
+    const rawData: unknown = await res.json();
+
+    if (!isGitTreeResponse(rawData)) {
+      throw new GitHubApiError('Unexpected response format from GitHub API.');
+    }
+
+    const sha = rawData.sha;
+    if (typeof sha !== 'string' || !/^[a-f0-9]{40}$/.test(sha)) {
+      throw new GitHubApiError('Invalid or missing sha field in tree response');
+    }
+
+    const tree = rawData.tree ?? [];
+
+    return { sha, tree };
+  } catch (err: unknown) {
+    wrapApiError(err);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
  * Find all SKILL.md files in a GitHub repository.
  * Fetches the default branch, then searches for skills on that branch.
  *
@@ -231,35 +354,14 @@ export async function findAllSkillMdFiles(
   owner: string,
   repo: string,
 ): Promise<SkillDiscoveryResult> {
-  const headers: Record<string, string> = { 'User-Agent': 'skillfish' };
-
   // Get the default branch
   const branch = await fetchDefaultBranch(owner, repo);
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  // Fetch the recursive tree (reuses fetchRecursiveTree to avoid duplication)
+  const { sha, tree } = await fetchRecursiveTree(owner, repo, branch);
 
-  try {
-    const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
-    const res = await fetchWithRetry(url, { headers, signal: controller.signal });
+  // Extract SKILL.md paths from the tree
+  const paths = extractSkillPaths({ tree }, SKILL_FILENAME);
 
-    checkRateLimit(res);
-
-    if (!res.ok) {
-      throw new GitHubApiError(`GitHub API returned status ${res.status}`);
-    }
-
-    const rawData: unknown = await res.json();
-
-    if (!isGitTreeResponse(rawData)) {
-      throw new GitHubApiError('Unexpected response format from GitHub API.');
-    }
-
-    const paths = extractSkillPaths(rawData, SKILL_FILENAME);
-    return { paths, branch };
-  } catch (err: unknown) {
-    wrapApiError(err);
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  return { paths, branch, sha, tree };
 }

@@ -7,11 +7,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   fetchWithRetry,
   findAllSkillMdFiles,
+  fetchRecursiveTree,
+  getSkillSha,
   RateLimitError,
   RepoNotFoundError,
   NetworkError,
   GitHubApiError,
 } from '../lib/github.js';
+import type { GitTreeItem } from '../utils.js';
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -111,6 +114,7 @@ describe('findAllSkillMdFiles', () => {
   it('returns skill paths on successful API response', async () => {
     const repoResponse = { default_branch: 'main' };
     const treeResponse = {
+      sha: 'a'.repeat(40), // Valid 40-char hex SHA
       tree: [
         { path: 'SKILL.md', type: 'blob' },
         { path: 'skills/foo/SKILL.md', type: 'blob' },
@@ -141,6 +145,7 @@ describe('findAllSkillMdFiles', () => {
   it('works with non-standard default branches like canary', async () => {
     const repoResponse = { default_branch: 'canary' };
     const treeResponse = {
+      sha: 'b'.repeat(40), // Valid 40-char hex SHA
       tree: [{ path: 'SKILL.md', type: 'blob' }],
     };
     mockFetch
@@ -191,6 +196,7 @@ describe('findAllSkillMdFiles', () => {
   it('returns empty paths array when tree has no SKILL.md files', async () => {
     const repoResponse = { default_branch: 'main' };
     const treeResponse = {
+      sha: 'c'.repeat(40), // Valid 40-char hex SHA
       tree: [
         { path: 'README.md', type: 'blob' },
         { path: 'src/index.ts', type: 'blob' },
@@ -204,5 +210,169 @@ describe('findAllSkillMdFiles', () => {
 
     expect(result.paths).toEqual([]);
     expect(result.branch).toBe('main');
+  });
+
+  it('returns tree items in discovery result', async () => {
+    const repoResponse = { default_branch: 'main' };
+    const treeResponse = {
+      sha: 'd'.repeat(40), // Valid 40-char hex SHA
+      tree: [
+        { path: 'SKILL.md', type: 'blob', sha: 'rootblob123' },
+        { path: 'skills', type: 'tree', sha: 'skillsdir456' },
+        { path: 'skills/foo', type: 'tree', sha: 'foodir789' },
+        { path: 'skills/foo/SKILL.md', type: 'blob', sha: 'fooblob000' },
+      ],
+    };
+    mockFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify(repoResponse), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(treeResponse), { status: 200 }));
+
+    const result = await findAllSkillMdFiles('owner', 'repo');
+
+    expect(result.tree).toHaveLength(4);
+    expect(result.tree[0]).toEqual({ path: 'SKILL.md', type: 'blob', sha: 'rootblob123' });
+  });
+});
+
+describe('fetchRecursiveTree', () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it('returns sha and tree on successful API response', async () => {
+    const treeResponse = {
+      sha: 'e'.repeat(40),
+      tree: [
+        { path: 'SKILL.md', type: 'blob', sha: 'blob123' },
+        { path: 'skills/foo', type: 'tree', sha: 'tree456' },
+      ],
+    };
+    mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(treeResponse), { status: 200 }));
+
+    const result = await fetchRecursiveTree('owner', 'repo', 'main');
+
+    expect(result.sha).toBe('e'.repeat(40));
+    expect(result.tree).toHaveLength(2);
+    expect(result.tree[0]).toEqual({ path: 'SKILL.md', type: 'blob', sha: 'blob123' });
+  });
+
+  it('throws RateLimitError when rate limited', async () => {
+    const resetTime = Math.floor(Date.now() / 1000) + 3600;
+    const headers = new Headers({
+      'X-RateLimit-Remaining': '0',
+      'X-RateLimit-Reset': String(resetTime),
+    });
+    mockFetch.mockResolvedValueOnce(new Response('rate limited', { status: 403, headers }));
+
+    await expect(fetchRecursiveTree('owner', 'repo', 'main')).rejects.toThrow(RateLimitError);
+  });
+
+  it('throws RepoNotFoundError when repo does not exist', async () => {
+    mockFetch.mockResolvedValueOnce(new Response('not found', { status: 404 }));
+
+    await expect(fetchRecursiveTree('owner', 'repo', 'main')).rejects.toThrow(RepoNotFoundError);
+  });
+
+  it('throws GitHubApiError on malformed tree response', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ tree: 'not-an-array' }), { status: 200 }),
+    );
+
+    await expect(fetchRecursiveTree('owner', 'repo', 'main')).rejects.toThrow(GitHubApiError);
+  });
+
+  it('throws GitHubApiError when sha is missing', async () => {
+    const treeResponse = {
+      tree: [{ path: 'SKILL.md', type: 'blob' }],
+    };
+    mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(treeResponse), { status: 200 }));
+
+    await expect(fetchRecursiveTree('owner', 'repo', 'main')).rejects.toThrow(
+      /Invalid or missing sha field/,
+    );
+  });
+
+  it('throws GitHubApiError when sha is invalid format', async () => {
+    const treeResponse = {
+      sha: 'invalid-sha',
+      tree: [{ path: 'SKILL.md', type: 'blob' }],
+    };
+    mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(treeResponse), { status: 200 }));
+
+    await expect(fetchRecursiveTree('owner', 'repo', 'main')).rejects.toThrow(GitHubApiError);
+  });
+
+  it('throws NetworkError on network failure', async () => {
+    const networkError = new Error('Network error');
+    mockFetch.mockRejectedValueOnce(networkError);
+
+    await expect(fetchRecursiveTree('owner', 'repo', 'main')).rejects.toThrow(NetworkError);
+  });
+
+  it('throws GitHubApiError on non-ok response', async () => {
+    // fetchWithRetry retries 3 times on 5xx, so mock all retries
+    mockFetch
+      .mockResolvedValueOnce(new Response('server error', { status: 500 }))
+      .mockResolvedValueOnce(new Response('server error', { status: 500 }))
+      .mockResolvedValueOnce(new Response('server error', { status: 500 }));
+
+    await expect(fetchRecursiveTree('owner', 'repo', 'main')).rejects.toThrow(GitHubApiError);
+  });
+
+  it('returns empty tree array when tree is missing', async () => {
+    const treeResponse = {
+      sha: 'f'.repeat(40),
+      // tree field is missing
+    };
+    mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(treeResponse), { status: 200 }));
+
+    const result = await fetchRecursiveTree('owner', 'repo', 'main');
+
+    expect(result.sha).toBe('f'.repeat(40));
+    expect(result.tree).toEqual([]);
+  });
+});
+
+describe('getSkillSha', () => {
+  const tree: GitTreeItem[] = [
+    { path: 'SKILL.md', type: 'blob', sha: 'rootblob123' },
+    { path: 'skills', type: 'tree', sha: 'skillsdir456' },
+    { path: 'skills/foo', type: 'tree', sha: 'foodir789' },
+    { path: 'skills/foo/SKILL.md', type: 'blob', sha: 'fooblob000' },
+    { path: 'skills/bar', type: 'tree', sha: 'bardir111' },
+    { path: 'skills/bar/SKILL.md', type: 'blob', sha: 'barblob222' },
+  ];
+
+  it('returns blob SHA for root-level skill', () => {
+    expect(getSkillSha(tree, 'SKILL.md')).toBe('rootblob123');
+  });
+
+  it('returns directory SHA for subdirectory skill', () => {
+    expect(getSkillSha(tree, 'skills/foo/SKILL.md')).toBe('foodir789');
+  });
+
+  it('returns directory SHA for nested skill', () => {
+    expect(getSkillSha(tree, 'skills/bar/SKILL.md')).toBe('bardir111');
+  });
+
+  it('returns undefined when path not found', () => {
+    expect(getSkillSha(tree, 'nonexistent/SKILL.md')).toBeUndefined();
+  });
+
+  it('returns undefined for empty tree', () => {
+    expect(getSkillSha([], 'SKILL.md')).toBeUndefined();
+  });
+
+  it('returns undefined when SKILL.md blob not found at root', () => {
+    const treeWithoutRoot: GitTreeItem[] = [{ path: 'README.md', type: 'blob', sha: 'readme123' }];
+    expect(getSkillSha(treeWithoutRoot, 'SKILL.md')).toBeUndefined();
+  });
+
+  it('handles deeply nested skill paths', () => {
+    const deepTree: GitTreeItem[] = [
+      { path: 'plugins/community/auth', type: 'tree', sha: 'authdir999' },
+      { path: 'plugins/community/auth/SKILL.md', type: 'blob', sha: 'authblob999' },
+    ];
+    expect(getSkillSha(deepTree, 'plugins/community/auth/SKILL.md')).toBe('authdir999');
   });
 });

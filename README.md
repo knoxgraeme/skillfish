@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" alt="skillfish" width="600">
+  <img src="https://raw.githubusercontent.com/knoxgraeme/skillfish/main/assets/logo.png" alt="skillfish" width="600">
 </p>
 
 <p align="center">
@@ -10,15 +10,70 @@
   <a href="https://github.com/knoxgraeme/skillfish/actions"><img src="https://github.com/knoxgraeme/skillfish/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
-Install AI agent skills from GitHub with a single command.
+<p align="center">
+  <strong>The skill manager for AI coding agents.</strong><br>
+  Install, update, and sync skills across Claude Code, Cursor, Copilot + more.
+</p>
+
+---
+
+## Quick Start
 
 ```bash
+# One-off skill installation
 npx skillfish add owner/repo
+
+# For skill management (list, update, remove), install globally
+npm i -g skillfish
 ```
 
-## Overview
+One command installs to **all detected agents** on your system.
 
-One command installs skills to **all detected agents**:
+## What Are Agent Skills?
+
+Agent Skills are portable packages of instructions, prompts, scripts, and resources that AI coding agents can discover and use. They give agents like Claude Code, Cursor, and Copilot domain expertise, reusable workflows, and team-specific context - loaded on demand to extend capabilities.
+
+Each skill contains a `SKILL.md` file with structured prompts and instructions the agent can follow.
+
+Learn more at [agentskills.io](https://agentskills.io).
+
+## Find Skills
+
+- **[skill.fish](https://skill.fish)** - Browse and discover community skills
+- **[MCP Market](https://mcpmarket.com/tools/skills)** - Skills directory
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `skillfish add <owner/repo>` | Install skills |
+| `skillfish init` | Create a new skill |
+| `skillfish list` | View installed skills |
+| `skillfish remove [name]` | Remove skills |
+| `skillfish update` | Update installed skills |
+
+All commands support `--json` for automation.
+
+## Examples
+
+```bash
+skillfish add owner/repo             # Install from a repository
+skillfish add owner/repo --all       # Install all skills from repo
+skillfish init                       # Create a new skill (interactive)
+skillfish init --name my-skill       # Create with a specified name
+skillfish list                       # See what's installed
+skillfish update                     # Update all skills
+skillfish remove old-skill           # Remove a skill
+```
+
+## Supported Agents
+
+Works with 17+ agents including:
+
+**Claude Code** · **Cursor** · **Windsurf** · **Codex** · **GitHub Copilot** · **Gemini CLI** · **OpenCode** · **Goose** · **Amp** · **Roo Code** · **Kiro CLI** · **Kilo Code** · **Trae** · **Cline** · **Antigravity** · **Droid** · **Clawdbot**
+
+<details>
+<summary>All supported agents</summary>
 
 | Agent | Skills Directory |
 |-------|------------------|
@@ -40,143 +95,126 @@ One command installs skills to **all detected agents**:
 | Droid | `~/.factory/skills/` |
 | Clawdbot | `~/.clawdbot/skills/` |
 
-## Usage
+</details>
 
-### Install Skills
+---
 
-```bash
-# Install a skill (auto-discovers SKILL.md location)
-npx skillfish add owner/repo
+## Command Reference
 
-# Full path from GitHub (plugin/skill syntax)
-npx skillfish add owner/repo/plugin/skill
+### add
 
-# Specify explicit path
-npx skillfish add owner/repo --path path/to/skill
-
-# Install all skills from a repo (non-interactive)
-npx skillfish add owner/repo --all
-
-# Overwrite existing skills
-npx skillfish add owner/repo --force
-
-# Skip confirmation prompt
-npx skillfish add owner/repo --yes
-```
-
-### List Skills
+Install skills from a repository.
 
 ```bash
-# Interactive agent and location picker
-npx skillfish list
-
-# List global skills only
-npx skillfish list --global
-
-# List project skills only
-npx skillfish list --project
-
-# List skills for a specific agent
-npx skillfish list --agent "Claude Code"
+skillfish add owner/repo                    # Auto-discover SKILL.md
+skillfish add owner/repo my-skill           # Install by skill name
+skillfish add owner/repo/path/to/skill      # Full path syntax
+skillfish add owner/repo --path skills/foo  # Explicit path
+skillfish add owner/repo --all              # Install all skills
+skillfish add owner/repo --force            # Overwrite existing
+skillfish add owner/repo --yes              # Skip confirmation
+skillfish add owner/repo --project          # Project only (./)
+skillfish add owner/repo --global           # Global only (~/)
 ```
 
-### Remove Skills
+### init
+
+Create a new skill template with `SKILL.md` and optional directories.
 
 ```bash
-# Interactive skill picker
-npx skillfish remove
-
-# Remove a skill by name
-npx skillfish remove my-skill
-
-# Remove all installed skills
-npx skillfish remove --all
-
-# Remove from current project only
-npx skillfish remove my-skill --project
-
-# Remove from home directory only
-npx skillfish remove my-skill --global
-
-# Remove from specific agent
-npx skillfish remove my-skill --agent "Claude Code"
-
-# Skip confirmation prompt
-npx skillfish remove my-skill --yes
+skillfish init                                  # Interactive skill creation
+skillfish init --name my-skill                  # Specify skill name
+skillfish init --name my-skill --description "Does a thing"  # Non-interactive
+skillfish init --project                        # Create in current project (./)
+skillfish init --global                         # Create in home directory (~/)
+skillfish init --name my-skill --yes            # Skip all prompts
+skillfish init --author "your-name"             # Set author metadata
+skillfish init --license MIT                    # Set license
 ```
 
-## Interactive Selection
+Interactive mode prompts for name, description, optional metadata (author, license), optional directories (`scripts/`, `references/`, `assets/`), install location, and target agents.
 
-When a repo contains multiple skills, you'll get an interactive multi-select menu with skill names and descriptions from frontmatter:
+### list
 
-```
-◆  Select skills to install
-│  ◻ my-skill - A helpful skill for your AI agent
-│  ◻ another-skill - Another useful capability
-│  ◻ third-skill - Yet another skill option
-│  ...
-└
-```
-
-Use `--all` to install all skills non-interactively (useful for automation).
-
-## Examples
+View installed skills.
 
 ```bash
-# Install from a skill repo with SKILL.md at root
-npx skillfish add user/my-skill
-
-# Install using full path from GitHub
-npx skillfish add owner/repo/path/to/skill
-
-# Install from a plugin repo with explicit path
-npx skillfish add org/plugin-repo --path plugins/my-plugin/skills/skill-name
-
-# Install all skills non-interactively
-npx skillfish add org/plugin-repo --all --yes
-
-# Force reinstall
-npx skillfish add user/skill --force
-
-# JSON output for automation
-npx skillfish add owner/repo --json
+skillfish list                       # List all installed skills
+skillfish list --global              # Global skills only (~/)
+skillfish list --project             # Project skills only (./)
+skillfish list --agent "Claude Code" # Specific agent
 ```
 
-## Discovery
+### remove
 
-The CLI searches these locations for `SKILL.md`:
-1. Repository root
-2. `.claude/skills/{repo}/`
-3. `skills/{repo}/`
-4. `plugins/{repo}/skills/{repo}/`
-
-Use `--path` to skip discovery and specify the exact location.
-
-## Telemetry
-
-This CLI collects anonymous, aggregate install counts to understand skill popularity. No personally identifiable information is collected.
-
-**What is collected:**
-- Skill identifier (e.g., `owner/repo/skill-name`)
-- Incremented install count
-
-**What is NOT collected:**
-- IP addresses
-- User identifiers
-- System information
-- Usage patterns
-
-To opt out, set `DO_NOT_TRACK=1` in your environment:
+Remove installed skills.
 
 ```bash
-DO_NOT_TRACK=1 npx skillfish add owner/repo
+skillfish remove                          # Interactive picker
+skillfish remove my-skill                 # By name
+skillfish remove --all                    # Remove all
+skillfish remove my-skill --project       # Project only
+skillfish remove my-skill --global        # Global only
+skillfish remove my-skill --agent "Cursor" # Specific agent
+skillfish remove my-skill --yes           # Skip confirmation
 ```
 
-Telemetry is also automatically disabled in CI environments (`CI=true`).
+### update
 
-## Exit Codes
+Update installed skills to latest version.
 
-Exit codes help agents and scripts understand command results without parsing error messages.
+```bash
+skillfish update                     # Check for updates interactively
+skillfish update --yes               # Update all without prompting
+skillfish update --json              # Check for updates (JSON output)
+```
+
+---
+
+## Non-Interactive Mode
+
+All commands work without prompts for use in scripts, CI pipelines, and automation. Non-interactive mode activates when:
+
+- The `--json` flag is passed, or
+- stdin is not a TTY (piped input, CI runners, cron jobs)
+
+In non-interactive mode, commands use default values where possible and error with guidance when required flags are missing.
+
+### Required flags
+
+| Command | Required | Defaults |
+|---------|----------|----------|
+| `add` | `<owner/repo>` + skill name, `--path`, or `--all` if repo has multiple skills | Location: global (`~/`), Agents: all detected |
+| `init` | `--name`, `--description` | Location: project (`./`), Agents: all detected |
+| `list` | (none) | Both locations, all agents |
+| `remove` | Skill name or `--all` | Both locations, all agents |
+| `update` | `--yes` to apply updates | All tracked skills |
+
+All commands accept `--project` or `--global` to override the default location.
+
+### Confirmation behavior
+
+Confirmation prompts are skipped in non-interactive mode. Commands that modify skills (`add`, `init`, `remove`) proceed automatically. The `update` command is the exception: `--json` without `--yes` runs in **check-only mode**, reporting outdated skills without applying changes.
+
+Use `--yes` to explicitly skip confirmations in interactive mode.
+
+### JSON output
+
+Pass `--json` to get structured output on stdout. All commands return a common shape:
+
+```json
+{
+  "success": true,
+  "exit_code": 0,
+  "errors": []
+}
+```
+
+Each command adds its own fields: `installed` and `skipped` (add), `created` and `skipped` (init), `removed` (remove), `outdated` and `updated` (update), `installed` and `agents_detected` (list).
+
+### Exit codes
+
+Exit codes are consistent across all commands:
 
 | Code | Name | Meaning |
 |------|------|---------|
@@ -186,28 +224,46 @@ Exit codes help agents and scripts understand command results without parsing er
 | 3 | Network Error | Network failure (timeout, rate limit) |
 | 4 | Not Found | Requested resource not found (skill, agent, repo) |
 
-JSON output includes `exit_code` for programmatic access:
+### CI example
 
 ```bash
-skillfish add owner/repo --json
-# Output includes: "exit_code": 0 (or error code)
+# Install skills in CI (non-interactive, JSON output)
+skillfish add owner/repo --yes --json
+
+# Create a skill template in CI
+skillfish init --name my-skill --description "My skill" --project --json
+
+# Check for outdated skills without applying
+skillfish update --json
+
+# Apply updates
+skillfish update --yes --json
 ```
+
+---
 
 ## Security
 
-**Security Note:** Skills are markdown files that provide instructions to AI agents. Always review skills before installing. skillfish does not vet third-party skills.
+Skills are markdown files that provide instructions to AI agents. Always review skills before installing. skillfish does not vet third-party skills.
 
-To report security vulnerabilities, please email security@skill.fish. See [SECURITY.md](SECURITY.md) for details.
+To report vulnerabilities, email security@skill.fish. See [SECURITY.md](SECURITY.md).
 
 ## Contributing
 
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) and our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
+
+<details>
+<summary>Telemetry</summary>
+
+Anonymous, aggregate install counts only. No PII collected.
+
+To opt out: `DO_NOT_TRACK=1` or `CI=true`.
+
+</details>
 
 ## License
 

@@ -50,6 +50,8 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
       - run: npm ci
+      # Create mock Claude Code config so agent detection works in tests
+      - run: mkdir -p ~/.claude && echo '{}' > ~/.claude/settings.json
       - run: npm test
 
   build:

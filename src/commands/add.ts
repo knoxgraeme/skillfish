@@ -7,6 +7,7 @@ import { homedir } from 'os';
 import { dirname, basename } from 'path';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
+import { printBanner } from '../lib/banner.js';
 import { trackInstall } from '../telemetry.js';
 import {
   isValidPath,
@@ -25,6 +26,8 @@ import {
   findAllSkillMdFiles,
   fetchSkillMdContent,
   fetchDefaultBranch,
+  fetchTreeSha,
+  getSkillSha,
   SKILL_FILENAME,
   RateLimitError,
   RepoNotFoundError,
@@ -32,6 +35,7 @@ import {
   GitHubApiError,
   type SkillDiscoveryResult,
 } from '../lib/github.js';
+import type { GitTreeItem } from '../utils.js';
 import { installSkill } from '../lib/installer.js';
 import { EXIT_CODES, isValidName, type ExitCode } from '../lib/constants.js';
 
@@ -121,11 +125,7 @@ Examples:
 
       // Show banner and intro (TTY only, not in JSON mode)
       if (isTTY() && !jsonMode) {
-        console.log();
-        console.log(pc.cyan('     ≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋'));
-        console.log(`       ${pc.cyan('><>')}  ${pc.bold('SKILL FISH')}  ${pc.cyan('><>')}`);
-        console.log(pc.cyan('     ≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋≋'));
-        console.log();
+        printBanner();
         p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim(`v${version}`)}`);
       }
 
@@ -184,15 +184,30 @@ Examples:
       }
 
       // 1. Discover or select skills
-      let discoveryResult: { paths: string[]; branch: string | undefined } | null;
+      let discoveryResult: {
+        paths: string[];
+        branch: string | undefined;
+        sha: string | undefined;
+        tree: GitTreeItem[];
+      } | null;
       if (explicitPath) {
-        // For explicit paths, we still need to fetch the default branch for degit
+        // For explicit paths, we still need to fetch the default branch and SHA for tracking
         try {
           const branch = await fetchDefaultBranch(owner, repo);
-          discoveryResult = { paths: [explicitPath], branch };
+          // Fetch tree SHA for manifest tracking
+          let sha: string | undefined;
+          try {
+            sha = await fetchTreeSha(owner, repo, branch);
+          } catch {
+            // If we can't fetch SHA, install without manifest tracking
+            sha = undefined;
+          }
+          // For explicit paths, we don't have the tree (would require extra API call)
+          // The sha will be root tree SHA - acceptable for explicit path installs
+          discoveryResult = { paths: [explicitPath], branch, sha, tree: [] };
         } catch {
           // If we can't fetch the branch, let degit try its own detection
-          discoveryResult = { paths: [explicitPath], branch: undefined };
+          discoveryResult = { paths: [explicitPath], branch: undefined, sha: undefined, tree: [] };
         }
       } else {
         discoveryResult = await discoverSkillPaths(
@@ -212,7 +227,12 @@ Examples:
         process.exit(EXIT_CODES.NOT_FOUND);
       }
 
-      const { paths: skillPaths, branch: discoveredBranch } = discoveryResult;
+      const {
+        paths: skillPaths,
+        branch: discoveredBranch,
+        sha: discoveredSha,
+        tree: discoveredTree,
+      } = discoveryResult;
 
       // 2. Determine install location (global vs project)
       const baseDir = await selectInstallLocation(projectFlag, globalFlag, jsonMode);
@@ -279,10 +299,17 @@ Examples:
           spinner.start(`Downloading ${skillName}...`);
         }
 
+        // Get directory-specific SHA for better update tracking
+        // skillPath is either 'SKILL.md' or a directory like 'skills/foo'
+        const skillMdPath =
+          skillPath === SKILL_FILENAME ? SKILL_FILENAME : `${skillPath}/${SKILL_FILENAME}`;
+        const skillSha = getSkillSha(discoveredTree, skillMdPath) ?? discoveredSha;
+
         const result = await installSkill(owner, repo, skillPath, skillName, targetAgents, {
           force,
           baseDir,
           branch: discoveredBranch,
+          sha: skillSha,
         });
 
         if (spinner) {
@@ -478,7 +505,7 @@ async function discoverSkillPaths(
   jsonMode: boolean,
   jsonOutput: AddJsonOutput,
   targetSkillName?: string,
-): Promise<{ paths: string[]; branch: string } | null> {
+): Promise<{ paths: string[]; branch: string; sha: string; tree: GitTreeItem[] } | null> {
   let skillDiscovery: SkillDiscoveryResult;
 
   try {
@@ -512,7 +539,7 @@ async function discoverSkillPaths(
     process.exit(exitCode);
   }
 
-  const { paths: skillPaths, branch } = skillDiscovery;
+  const { paths: skillPaths, branch, sha, tree } = skillDiscovery;
 
   if (skillPaths.length === 0) {
     const errorMsg = `No ${SKILL_FILENAME} found in repository`;
@@ -588,7 +615,7 @@ async function discoverSkillPaths(
       if (!jsonMode) {
         p.log.info(`${pc.bold(displayName)}${desc ? pc.dim(` - ${desc}`) : ''}`);
       }
-      return { paths: [matchedSkill.dir], branch };
+      return { paths: [matchedSkill.dir], branch, sha, tree };
     }
 
     // Skill not found - show available skills
@@ -615,15 +642,14 @@ async function discoverSkillPaths(
     if (!jsonMode) {
       p.log.info(`${pc.bold(displayName)}${desc ? pc.dim(` - ${desc}`) : ''}`);
     }
-    return { paths: [skill.dir], branch };
+    return { paths: [skill.dir], branch, sha, tree };
   }
 
   // Build options for selection with frontmatter metadata
-  // Title in label, description in hint (shows on focus)
+  // No hints - @clack/prompts has rendering issues with long option lists
   const optionsList = skills.map((skill) => ({
     value: skill.dir,
-    label: pc.bold(toTitleCase(skill.name)),
-    hint: skill.description || undefined,
+    label: toTitleCase(skill.name),
   }));
 
   // Non-TTY or JSON mode: require --all or --path for multiple skills
@@ -633,7 +659,7 @@ async function discoverSkillPaths(
       if (!jsonMode) {
         console.log(`Installing all ${skills.length} skills`);
       }
-      return { paths: skills.map((s) => s.dir), branch };
+      return { paths: skills.map((s) => s.dir), branch, sha, tree };
     }
 
     // Otherwise, list skills and exit with guidance
@@ -666,7 +692,7 @@ async function discoverSkillPaths(
     process.exit(EXIT_CODES.SUCCESS);
   }
 
-  return { paths: selected, branch };
+  return { paths: selected, branch, sha, tree };
 }
 
 /**
