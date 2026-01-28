@@ -8,7 +8,7 @@ import { join } from 'path';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
-import { getDetectedAgents, getAgentSkillDir, type Agent, AGENT_CONFIGS } from '../lib/agents.js';
+import { getDetectedAgents, getAgentSkillDir, type Agent } from '../lib/agents.js';
 import { SKILL_FILENAME } from '../lib/github.js';
 import { EXIT_CODES, type ExitCode } from '../lib/constants.js';
 import { isInputTTY, isTTY, type InitJsonOutput } from '../utils.js';
@@ -70,48 +70,82 @@ interface SkillMetadata {
   license?: string;
 }
 
+const OPTIONAL_DIRS = [
+  { value: 'scripts', label: 'scripts/', hint: 'Executable code (Python, Bash, JS)' },
+  { value: 'references', label: 'references/', hint: 'Additional documentation' },
+  { value: 'assets', label: 'assets/', hint: 'Templates, images, data files' },
+] as const;
+
+type OptionalDir = (typeof OPTIONAL_DIRS)[number]['value'];
+
+/**
+ * Quote a YAML value if it contains characters that could break parsing.
+ * Wraps in double quotes and escapes internal double quotes/backslashes.
+ */
+function yamlQuote(value: string): string {
+  // If the value contains any YAML-special characters, quote it
+  if (/[:#[\]{}&*!|>'"%@`\n\r\\,]/.test(value) || value.startsWith('-') || value.startsWith('?')) {
+    const escaped = value
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '\\r');
+    return `"${escaped}"`;
+  }
+  return value;
+}
+
 /**
  * Generate SKILL.md content with frontmatter and template.
  */
-function generateSkillMd(meta: SkillMetadata): string {
-  const frontmatterLines = ['---', `name: ${meta.name}`, `description: ${meta.description}`];
+function generateSkillMd(meta: SkillMetadata, dirs: readonly OptionalDir[]): string {
+  const frontmatterLines = [
+    '---',
+    `name: ${yamlQuote(meta.name)}`,
+    `description: ${yamlQuote(meta.description)}`,
+  ];
 
   if (meta.license) {
-    frontmatterLines.push(`license: ${meta.license}`);
+    frontmatterLines.push(`license: ${yamlQuote(meta.license)}`);
   }
 
   if (meta.author || meta.version) {
     frontmatterLines.push('metadata:');
     if (meta.author) {
-      frontmatterLines.push(`  author: ${meta.author}`);
+      frontmatterLines.push(`  author: ${yamlQuote(meta.author)}`);
     }
     if (meta.version) {
-      frontmatterLines.push(`  version: "${meta.version}"`);
+      frontmatterLines.push(`  version: ${yamlQuote(meta.version)}`);
     }
   }
 
   frontmatterLines.push('---');
 
-  const content = `${frontmatterLines.join('\n')}
+  const sections: string[] = [
+    `${frontmatterLines.join('\n')}`,
+    `# ${meta.name}`,
+    meta.description,
+    `## Instructions\n\n<!-- Add your skill instructions here. This is what the AI agent will read and follow. -->`,
+    `## Examples\n\n<!-- Provide examples of how this skill should be used. -->`,
+  ];
 
-# ${meta.name}
+  if (dirs.includes('references')) {
+    sections.push(
+      `## References\n\n<!-- Reference additional docs from the references/ directory. -->\n<!-- Example: See [detailed guide](references/REFERENCE.md) for more info. -->`,
+    );
+  } else {
+    sections.push(
+      `## References\n\n<!-- Link to documentation, APIs, or other resources the agent might need. -->`,
+    );
+  }
 
-${meta.description}
+  if (dirs.includes('scripts')) {
+    sections.push(
+      `## Scripts\n\n<!-- Executable code is available in the scripts/ directory. -->\n<!-- Example: Run scripts/setup.sh to configure the environment. -->`,
+    );
+  }
 
-## Instructions
-
-<!-- Add your skill instructions here. This is what the AI agent will read and follow. -->
-
-## Examples
-
-<!-- Provide examples of how this skill should be used. -->
-
-## References
-
-<!-- Link to documentation, APIs, or other resources the agent might need. -->
-`;
-
-  return content;
+  return sections.join('\n\n') + '\n';
 }
 
 // === Command Definition ===
@@ -187,6 +221,10 @@ Examples:
     const skipPrompts = options.yes ?? false;
     const projectFlag = options.project ?? false;
     const globalFlag = options.global ?? false;
+
+    if (projectFlag && globalFlag) {
+      exitWithError('Cannot use both --project and --global. Choose one.', EXIT_CODES.INVALID_ARGS);
+    }
 
     // 1. Get skill name
     let skillName: string;
@@ -310,10 +348,44 @@ Examples:
       }
     }
 
-    // 4. Determine install location (global vs project)
+    // 4. Select optional directories
+    let optionalDirs: readonly OptionalDir[] = [];
+
+    if (isInputTTY() && !jsonMode && !skipPrompts) {
+      const addDirs = await p.confirm({
+        message: 'Include optional directories (scripts/, references/, assets/)?',
+        initialValue: false,
+      });
+
+      if (p.isCancel(addDirs)) {
+        p.cancel('Cancelled');
+        process.exit(EXIT_CODES.SUCCESS);
+      }
+
+      if (addDirs) {
+        const selected = await p.multiselect({
+          message: 'Select directories to include',
+          options: OPTIONAL_DIRS.map((d) => ({
+            value: d.value,
+            label: d.label,
+            hint: d.hint,
+          })),
+          required: false,
+        });
+
+        if (p.isCancel(selected)) {
+          p.cancel('Cancelled');
+          process.exit(EXIT_CODES.SUCCESS);
+        }
+
+        optionalDirs = selected as OptionalDir[];
+      }
+    }
+
+    // 5. Determine install location (global vs project)
     const baseDir = await selectInstallLocation(projectFlag, globalFlag, jsonMode);
 
-    // 5. Select agents to create skill for
+    // 6. Select agents to create skill for
     const detected = getDetectedAgents();
 
     if (detected.length === 0) {
@@ -341,10 +413,10 @@ Examples:
     } else {
       // Interactive: let user choose from detected agents
       const isLocal = baseDir !== homedir();
-      targetAgents = await selectAgents(detected, isLocal);
+      targetAgents = await selectAgents(detected, isLocal, jsonMode);
     }
 
-    // 6. Create the skill
+    // 7. Create the skill
     const skillMeta: SkillMetadata = {
       name: skillName,
       description: skillDescription,
@@ -353,7 +425,7 @@ Examples:
       license,
     };
 
-    const skillContent = generateSkillMd(skillMeta);
+    const skillContent = generateSkillMd(skillMeta, optionalDirs);
     const isLocal = baseDir !== homedir();
     const pathPrefix = isLocal ? '.' : '~';
 
@@ -386,30 +458,46 @@ Examples:
       try {
         mkdirSync(skillDir, { recursive: true, mode: 0o700 });
         writeFileSync(skillFilePath, skillContent, { mode: 0o600 });
-
-        const displayPath = `${pathPrefix}/${AGENT_CONFIGS.find((c) => c.name === agent.name)?.dir ?? 'skills'}/${skillName}`;
-        if (!jsonMode) {
-          console.log(`  ${pc.green('✓')} ${agent.name} ${pc.dim(`→ ${displayPath}`)}`);
-        }
-
-        jsonOutput.created.push({
-          skill: skillName,
-          agent: agent.name,
-          path: skillDir,
-        });
-        created++;
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         if (!jsonMode) {
           console.log(`  ${pc.red('✗')} ${agent.name} ${pc.dim(`(${errMsg})`)}`);
         }
         addError(`Failed to create skill for ${agent.name}: ${errMsg}`);
+        continue;
       }
+
+      // Create optional directories (non-fatal — SKILL.md is already written)
+      for (const dir of optionalDirs) {
+        try {
+          mkdirSync(join(skillDir, dir), { recursive: true, mode: 0o700 });
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          if (!jsonMode) {
+            console.log(
+              `  ${pc.yellow('!')} ${agent.name}: failed to create ${dir}/ ${pc.dim(`(${errMsg})`)}`,
+            );
+          }
+          jsonOutput.errors.push(`Failed to create ${dir}/ for ${agent.name}: ${errMsg}`);
+        }
+      }
+
+      const displayPath = `${pathPrefix}/${agent.dir}/${skillName}`;
+      if (!jsonMode) {
+        console.log(`  ${pc.green('✓')} ${agent.name} ${pc.dim(`→ ${displayPath}`)}`);
+      }
+
+      jsonOutput.created.push({
+        skill: skillName,
+        agent: agent.name,
+        path: skillDir,
+      });
+      created++;
     }
 
     // Summary
     if (jsonMode) {
-      outputJsonAndExit(EXIT_CODES.SUCCESS);
+      outputJsonAndExit(jsonOutput.success ? EXIT_CODES.SUCCESS : EXIT_CODES.GENERAL_ERROR);
     }
 
     console.log();
@@ -418,8 +506,14 @@ Examples:
       console.log();
       console.log(pc.dim('  Next steps:'));
       console.log(pc.dim(`  1. Edit ${SKILL_FILENAME} to add your instructions`));
-      console.log(pc.dim('  2. Test with your AI agent'));
-      console.log(pc.dim('  3. Share on skill.fish or GitHub'));
+      if (optionalDirs.length > 0) {
+        console.log(pc.dim(`  2. Add files to ${optionalDirs.map((d) => `${d}/`).join(', ')}`));
+        console.log(pc.dim('  3. Test with your AI agent'));
+        console.log(pc.dim('  4. Share on skill.fish or GitHub'));
+      } else {
+        console.log(pc.dim('  2. Test with your AI agent'));
+        console.log(pc.dim('  3. Share on skill.fish or GitHub'));
+      }
       console.log();
       p.outro(pc.green(`Done! Created ${created} skill${created === 1 ? '' : 's'}`));
     } else if (skipped > 0) {
@@ -427,7 +521,7 @@ Examples:
     } else {
       p.outro(pc.yellow('No skills created'));
     }
-    process.exit(EXIT_CODES.SUCCESS);
+    process.exit(created > 0 || skipped > 0 ? EXIT_CODES.SUCCESS : EXIT_CODES.GENERAL_ERROR);
   });
 
 // === Helper Functions ===
@@ -440,17 +534,13 @@ async function selectInstallLocation(
   // If flag specified, use it
   if (projectFlag) {
     if (!jsonMode) {
-      p.log.info(
-        `Location: ${pc.cyan('Project')} ${pc.dim('(./')}${pc.dim(AGENT_CONFIGS[0].dir)}${pc.dim(')')}`,
-      );
+      p.log.info(`Location: ${pc.cyan('Project')} ${pc.dim('(current directory)')}`);
     }
     return process.cwd();
   }
   if (globalFlag) {
     if (!jsonMode) {
-      p.log.info(
-        `Location: ${pc.cyan('Global')} ${pc.dim('(~/')}${pc.dim(AGENT_CONFIGS[0].dir)}${pc.dim(')')}`,
-      );
+      p.log.info(`Location: ${pc.cyan('Global')} ${pc.dim('(home directory)')}`);
     }
     return homedir();
   }
@@ -485,13 +575,19 @@ async function selectInstallLocation(
   return location === 'project' ? process.cwd() : homedir();
 }
 
-async function selectAgents(agents: readonly Agent[], isLocal: boolean): Promise<readonly Agent[]> {
+async function selectAgents(
+  agents: readonly Agent[],
+  isLocal: boolean,
+  jsonMode: boolean,
+): Promise<readonly Agent[]> {
   const pathPrefix = isLocal ? '.' : '~';
 
   // Show detected agents
-  p.log.info(
-    `Detected ${pc.cyan(agents.length.toString())} agent${agents.length === 1 ? '' : 's'}: ${agents.map((a) => a.name).join(', ')}`,
-  );
+  if (!jsonMode) {
+    p.log.info(
+      `Detected ${pc.cyan(agents.length.toString())} agent${agents.length === 1 ? '' : 's'}: ${agents.map((a) => a.name).join(', ')}`,
+    );
+  }
 
   const installAll = await p.confirm({
     message: 'Create for all detected agents?',

@@ -47,6 +47,7 @@ Learn more at [agentskills.io](https://agentskills.io).
 | Command | Description |
 |---------|-------------|
 | `skillfish add <owner/repo>` | Install skills |
+| `skillfish init` | Create a new skill |
 | `skillfish list` | View installed skills |
 | `skillfish remove [name]` | Remove skills |
 | `skillfish update` | Update installed skills |
@@ -58,6 +59,8 @@ All commands support `--json` for automation.
 ```bash
 skillfish add owner/repo             # Install from a repository
 skillfish add owner/repo --all       # Install all skills from repo
+skillfish init                       # Create a new skill (interactive)
+skillfish init --name my-skill       # Create with a specified name
 skillfish list                       # See what's installed
 skillfish update                     # Update all skills
 skillfish remove old-skill           # Remove a skill
@@ -113,6 +116,23 @@ skillfish add owner/repo --yes              # Skip confirmation
 skillfish add owner/repo --project          # Project only (./)
 skillfish add owner/repo --global           # Global only (~/)
 ```
+
+### init
+
+Create a new skill template with `SKILL.md` and optional directories.
+
+```bash
+skillfish init                                  # Interactive skill creation
+skillfish init --name my-skill                  # Specify skill name
+skillfish init --name my-skill --description "Does a thing"  # Non-interactive
+skillfish init --project                        # Create in current project (./)
+skillfish init --global                         # Create in home directory (~/)
+skillfish init --name my-skill --yes            # Skip all prompts
+skillfish init --author "your-name"             # Set author metadata
+skillfish init --license MIT                    # Set license
+```
+
+Interactive mode prompts for name, description, optional metadata (author, license), optional directories (`scripts/`, `references/`, `assets/`), install location, and target agents.
 
 ### list
 
