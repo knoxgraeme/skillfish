@@ -43,6 +43,7 @@ npm run typecheck      # TypeScript type checking
 ### Core Libraries
 
 - `src/lib/agents.ts` - Agent detection and configuration (AGENT_CONFIGS array defines all supported agents with their detection paths and skill directories)
+- `src/lib/banner.ts` - ASCII art logo and banner display (`printBanner()` for commands, `getBannerText()` for Commander help text). Supports truecolor gradient with `NO_COLOR` fallback
 - `src/lib/github.ts` - GitHub API functions (tree fetching, rate limit handling, retry logic with exponential backoff)
 - `src/lib/installer.ts` - Skill installation logic (downloads via giget tarball, validates SKILL.md exists, copies to agent directories)
 - `src/lib/manifest.ts` - Skill manifest handling (reads/writes .skillfish-manifest.json for tracking installed skill versions)
@@ -63,6 +64,10 @@ npm run typecheck      # TypeScript type checking
 
 **Exit Codes**: 0=success, 1=general error, 2=invalid args, 3=network error, 4=not found
 
+**Terminal Color Conventions**: When using raw ANSI escape sequences (e.g. truecolor `\x1b[38;2;...`), always check `NO_COLOR` env var (https://no-color.org) before emitting them. `picocolors` handles this automatically for its own functions, but raw escapes bypass it. The `banner.ts` module demonstrates the correct pattern with `isColorDisabled()`.
+
+**Commander.js Help Styling**: Help styles are defined in `src/index.ts` as a typed `HelpConfiguration` object and propagated to all subcommands via a loop after `addCommand()` calls. The propagation loop must run after all commands are registered — this is an ordering dependency documented with a comment.
+
 ### Command Structure Convention
 
 All commands in `src/commands/` follow this structure. New commands must match these conventions:
@@ -79,7 +84,7 @@ All commands in `src/commands/` follow this structure. New commands must match t
 1. Read `jsonMode` and `version` from `command.parent?.opts()`
 2. Initialize typed JSON output object (type defined in `utils.ts`, extending `BaseJsonOutput`)
 3. Define inner helpers: `addError()`, `outputJsonAndExit()`, `exitWithError()`
-4. Banner block guarded by `isTTY() && !jsonMode`
+4. Banner block: `if (isTTY() && !jsonMode) { printBanner(); p.intro(...); }` — **every command must use this exact guard pattern**, even if JSON mode exits earlier in the flow. Do not rely on control-flow-based guards (e.g. "JSON exits before this line"); always use the explicit `isTTY() && !jsonMode` check.
 5. Read and destructure CLI options with `?? false` / `?? null` defaults
 6. Command logic with `@clack/prompts` for interactive mode
 7. Every prompt result checked with `p.isCancel()` → `p.cancel('Cancelled')` → `process.exit(EXIT_CODES.SUCCESS)`
@@ -117,5 +122,7 @@ Update CLAUDE.md when:
 - Changing exit codes or error handling patterns
 - Modifying agent detection logic or adding new agents
 - Adding new npm scripts
+- Adding terminal output that uses raw ANSI escapes (document NO_COLOR compliance)
+- Changing banner or help styling patterns
 
 Keep this file focused on architecture and patterns. User-facing documentation belongs in README.md.

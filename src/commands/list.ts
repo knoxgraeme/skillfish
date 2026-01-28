@@ -7,10 +7,11 @@ import { homedir } from 'os';
 import { join } from 'path';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
+import { printBanner } from '../lib/banner.js';
 import { getDetectedAgents, getAgentSkillDir, type Agent } from '../lib/agents.js';
 import { listInstalledSkillsInDir } from '../lib/installer.js';
 import { EXIT_CODES, type ExitCode } from '../lib/constants.js';
-import { isInputTTY, type ListJsonOutput, type InstalledSkill } from '../utils.js';
+import { isTTY, isInputTTY, type ListJsonOutput, type InstalledSkill } from '../utils.js';
 
 // === Types ===
 
@@ -177,8 +178,10 @@ Examples:
         });
       }
 
-      // Display intro
-      console.log();
+      // Display intro (TTY only, not in JSON mode)
+      if (isTTY() && !jsonMode) {
+        printBanner();
+      }
       p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim(`Skills for ${found[0].name}`)}`);
 
       if (globalSkills.length === 0 && projectSkills.length === 0) {
@@ -233,7 +236,9 @@ Examples:
 
     // Interactive mode: show agent selector
     if (isInputTTY()) {
-      console.log();
+      if (isTTY() && !jsonMode) {
+        printBanner();
+      }
       p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim('Installed skills')}`);
 
       // Step 1: Build options with skill counts in label (always visible)
@@ -315,7 +320,9 @@ Examples:
     // Non-interactive mode: display all agents with skills
     const { installed, globalSkills, projectSkills } = collectSkills(detected);
 
-    console.log();
+    if (isTTY() && !jsonMode) {
+      printBanner();
+    }
     p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim('Installed skills')}`);
     console.log();
     console.log(pc.bold('Detected Agents'));

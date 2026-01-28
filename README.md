@@ -169,10 +169,52 @@ skillfish update --yes               # Update all without prompting
 skillfish update --json              # Check for updates (JSON output)
 ```
 
-<details>
-<summary>Exit Codes</summary>
+---
 
-Exit codes help agents and scripts understand command results without parsing error messages.
+## Non-Interactive Mode
+
+All commands work without prompts for use in scripts, CI pipelines, and automation. Non-interactive mode activates when:
+
+- The `--json` flag is passed, or
+- stdin is not a TTY (piped input, CI runners, cron jobs)
+
+In non-interactive mode, commands use default values where possible and error with guidance when required flags are missing.
+
+### Required flags
+
+| Command | Required | Defaults |
+|---------|----------|----------|
+| `add` | `<owner/repo>` + skill name, `--path`, or `--all` if repo has multiple skills | Location: global (`~/`), Agents: all detected |
+| `init` | `--name`, `--description` | Location: project (`./`), Agents: all detected |
+| `list` | (none) | Both locations, all agents |
+| `remove` | Skill name or `--all` | Both locations, all agents |
+| `update` | `--yes` to apply updates | All tracked skills |
+
+All commands accept `--project` or `--global` to override the default location.
+
+### Confirmation behavior
+
+Confirmation prompts are skipped in non-interactive mode. Commands that modify skills (`add`, `init`, `remove`) proceed automatically. The `update` command is the exception: `--json` without `--yes` runs in **check-only mode**, reporting outdated skills without applying changes.
+
+Use `--yes` to explicitly skip confirmations in interactive mode.
+
+### JSON output
+
+Pass `--json` to get structured output on stdout. All commands return a common shape:
+
+```json
+{
+  "success": true,
+  "exit_code": 0,
+  "errors": []
+}
+```
+
+Each command adds its own fields: `installed` and `skipped` (add), `created` and `skipped` (init), `removed` (remove), `outdated` and `updated` (update), `installed` and `agents_detected` (list).
+
+### Exit codes
+
+Exit codes are consistent across all commands:
 
 | Code | Name | Meaning |
 |------|------|---------|
@@ -182,14 +224,21 @@ Exit codes help agents and scripts understand command results without parsing er
 | 3 | Network Error | Network failure (timeout, rate limit) |
 | 4 | Not Found | Requested resource not found (skill, agent, repo) |
 
-JSON output includes `exit_code` for programmatic access:
+### CI example
 
 ```bash
-skillfish add owner/repo --json
-# Output includes: "exit_code": 0 (or error code)
-```
+# Install skills in CI (non-interactive, JSON output)
+skillfish add owner/repo --yes --json
 
-</details>
+# Create a skill template in CI
+skillfish init --name my-skill --description "My skill" --project --json
+
+# Check for outdated skills without applying
+skillfish update --json
+
+# Apply updates
+skillfish update --yes --json
+```
 
 ---
 
