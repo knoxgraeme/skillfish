@@ -41,6 +41,7 @@ Learn more at [agentskills.io](https://agentskills.io).
 
 - **[skill.fish](https://skill.fish)** - Browse and discover community skills
 - **[MCP Market](https://mcpmarket.com/tools/skills)** - Skills directory
+- **`skillfish search <query>`** - Search from the command line
 
 ## Commands
 
