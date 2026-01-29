@@ -1,6 +1,5 @@
 /**
- * Registry API client for skill submission and search.
- * Currently uses a mock API - will be replaced with real Supabase endpoint.
+ * Registry API client for skill submission.
  */
 
 import { sleep } from '../utils.js';
@@ -10,8 +9,8 @@ const API_TIMEOUT_MS = 10000;
 const MAX_RETRIES = 3;
 const RETRY_DELAYS_MS = [1000, 2000, 4000];
 
-// Mock API endpoint - replace with real endpoint when ready
-const REGISTRY_API_URL = 'https://mcpmarket.com/api/registry';
+// Registry API endpoint
+const REGISTRY_API_URL = 'https://mcpmarket.com/api/submit-url';
 
 // === Types ===
 
@@ -119,8 +118,9 @@ async function fetchWithRetry(
 
 /**
  * Submit skills to the registry.
+ * Submits at the repo level - the backend discovers individual skills.
  *
- * @param skills - Array of skill submissions
+ * @param skills - Array of skill submissions (deduplicated by repo)
  * @returns BatchSubmissionResponse with results for each skill
  * @throws {RegistryNetworkError} On network errors
  * @throws {RegistryApiError} On API errors
@@ -128,68 +128,99 @@ async function fetchWithRetry(
 export async function submitSkillsToRegistry(
   skills: SkillSubmission[],
 ): Promise<BatchSubmissionResponse> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
-
-  try {
-    const res = await fetchWithRetry(
-      `${REGISTRY_API_URL}/submit`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'skillfish',
-        },
-        body: JSON.stringify({ skills }),
-        signal: controller.signal,
-      },
-      MAX_RETRIES,
-    );
-
-    if (!res.ok) {
-      // For now, simulate a successful response since API doesn't exist yet
-      // TODO: Remove this mock when real API is implemented
-      if (res.status === 404) {
-        return mockSubmitResponse(skills);
-      }
-      throw new RegistryApiError(`Registry API returned status ${res.status}`, res.status);
+  // Deduplicate by repo - API accepts repo-level submissions
+  const repoMap = new Map<string, SkillSubmission[]>();
+  for (const skill of skills) {
+    const repoKey = `${skill.owner}/${skill.repo}`;
+    if (!repoMap.has(repoKey)) {
+      repoMap.set(repoKey, []);
     }
-
-    const data = (await res.json()) as BatchSubmissionResponse;
-    return data;
-  } catch (err) {
-    // Handle timeout
-    if (err instanceof Error && err.name === 'AbortError') {
-      // Return mock response for now since API doesn't exist
-      return mockSubmitResponse(skills);
-    }
-
-    // Re-throw known errors
-    if (err instanceof RegistryApiError) {
-      throw err;
-    }
-
-    // For network errors during development, return mock response
-    // TODO: Remove this mock when real API is implemented
-    return mockSubmitResponse(skills);
-  } finally {
-    clearTimeout(timeoutId);
+    repoMap.get(repoKey)!.push(skill);
   }
-}
 
-/**
- * Mock submission response for development.
- * TODO: Remove when real API is implemented.
- */
-function mockSubmitResponse(skills: SkillSubmission[]): BatchSubmissionResponse {
+  const submitted: SubmissionResponse[] = [];
+  const errors: string[] = [];
+
+  // Submit each unique repo
+  for (const [repoKey, repoSkills] of repoMap) {
+    const [owner, repo] = repoKey.split('/');
+    const repoUrl = `https://github.com/${owner}/${repo}`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
+    try {
+      const res = await fetchWithRetry(
+        REGISTRY_API_URL,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'skillfish-cli',
+          },
+          body: JSON.stringify({ url: repoUrl, type: 'skill' }),
+          signal: controller.signal,
+        },
+        MAX_RETRIES,
+      );
+
+      const data = (await res.json()) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+        submission_id?: number;
+      };
+
+      if (res.ok && data.success) {
+        // Mark all skills from this repo as submitted
+        for (const skill of repoSkills) {
+          submitted.push({
+            success: true,
+            skill_name: skill.skill_name,
+            message: data.message || 'Submitted for review',
+          });
+        }
+      } else {
+        // Handle specific error cases
+        const errorMsg = data.error || `Failed to submit ${repoKey}`;
+        for (const skill of repoSkills) {
+          submitted.push({
+            success: false,
+            skill_name: skill.skill_name,
+            error: errorMsg,
+          });
+        }
+      }
+    } catch (err) {
+      const errorMsg =
+        err instanceof Error && err.name === 'AbortError'
+          ? 'Request timed out'
+          : err instanceof Error
+            ? err.message
+            : 'Network error';
+
+      for (const skill of repoSkills) {
+        submitted.push({
+          success: false,
+          skill_name: skill.skill_name,
+          error: errorMsg,
+        });
+      }
+      errors.push(`${repoKey}: ${errorMsg}`);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    // Small delay between requests to avoid rate limiting
+    if (repoMap.size > 1) {
+      await sleep(200);
+    }
+  }
+
   return {
-    success: true,
-    submitted: skills.map((skill) => ({
-      success: true,
-      skill_name: skill.skill_name,
-      message: 'Submitted for review (mock response)',
-    })),
-    errors: [],
+    success: submitted.every((s) => s.success),
+    submitted,
+    errors,
   };
 }
 
