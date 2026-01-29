@@ -50,3 +50,6 @@ plans/
 todos/
 .context/
 docs/solutions
+
+# Supabase CLI cache
+supabase/
