@@ -17,6 +17,7 @@ import { initCommand } from './commands/init.js';
 import { listCommand } from './commands/list.js';
 import { removeCommand } from './commands/remove.js';
 import { updateCommand } from './commands/update.js';
+import { submitCommand } from './commands/submit.js';
 
 // Read version from package.json (single source of truth)
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -87,6 +88,7 @@ program.addCommand(initCommand);
 program.addCommand(listCommand);
 program.addCommand(removeCommand);
 program.addCommand(updateCommand);
+program.addCommand(submitCommand);
 
 // Propagate help styling to all subcommands (must run after all addCommand() calls)
 for (const cmd of program.commands) {

@@ -39,14 +39,17 @@ npm run typecheck      # TypeScript type checking
 - `src/commands/list.ts` - List installed skills
 - `src/commands/remove.ts` - Remove installed skills
 - `src/commands/update.ts` - Check for and apply updates to installed skills
+- `src/commands/submit.ts` - Submit skills to the registry (accepts GitHub URLs or owner/repo)
 
 ### Core Libraries
 
 - `src/lib/agents.ts` - Agent detection and configuration (AGENT_CONFIGS array defines all supported agents with their detection paths and skill directories)
 - `src/lib/banner.ts` - ASCII art logo and banner display (`printBanner()` for commands, `getBannerText()` for Commander help text). Supports truecolor gradient with `NO_COLOR` fallback
-- `src/lib/github.ts` - GitHub API functions (tree fetching, rate limit handling, retry logic with exponential backoff)
+- `src/lib/github.ts` - GitHub API functions (tree fetching, rate limit handling)
+- `src/lib/http.ts` - Shared HTTP utilities (fetchWithRetry with timeout and exponential backoff)
 - `src/lib/installer.ts` - Skill installation logic (downloads via giget tarball, validates SKILL.md exists, copies to agent directories)
 - `src/lib/manifest.ts` - Skill manifest handling (reads/writes .skillfish-manifest.json for tracking installed skill versions)
+- `src/lib/registry.ts` - Registry API client for skill submission to mcpmarket.com
 - `src/lib/constants.ts` - Exit codes (EXIT_CODES), machine-readable error codes (ERROR_CODES) for JSON output, and name validation utilities
 
 ### Utilities

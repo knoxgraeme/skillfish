@@ -51,6 +51,7 @@ Learn more at [agentskills.io](https://agentskills.io).
 | `skillfish list` | View installed skills |
 | `skillfish remove [name]` | Remove skills |
 | `skillfish update` | Update installed skills |
+| `skillfish submit <repo>` | Submit skills to registry |
 
 All commands support `--json` for automation.
 
@@ -64,6 +65,7 @@ skillfish init --name my-skill       # Create with a specified name
 skillfish list                       # See what's installed
 skillfish update                     # Update all skills
 skillfish remove old-skill           # Remove a skill
+skillfish submit owner/repo          # Submit your skills to the registry
 ```
 
 ## Supported Agents
@@ -168,6 +170,18 @@ skillfish update                     # Check for updates interactively
 skillfish update --yes               # Update all without prompting
 skillfish update --json              # Check for updates (JSON output)
 ```
+
+### submit
+
+Submit your skills to the registry for others to discover. Just paste a GitHub URL.
+
+```bash
+skillfish submit https://github.com/owner/repo   # Paste any GitHub URL
+skillfish submit owner/repo                      # Or use owner/repo format
+skillfish submit owner/repo --yes                # Skip confirmation
+```
+
+Your submission will be reviewed and added to [skill.fish](https://skill.fish) and [MCP Market](https://mcpmarket.com).
 
 ---
 

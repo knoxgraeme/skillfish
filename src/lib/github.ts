@@ -2,12 +2,9 @@
  * GitHub API functions for skill discovery and fetching.
  */
 
-import { isGitTreeResponse, extractSkillPaths, sleep, type GitTreeItem } from '../utils.js';
+import { isGitTreeResponse, extractSkillPaths, type GitTreeItem } from '../utils.js';
+import { fetchWithRetry } from './http.js';
 
-// === Constants ===
-const API_TIMEOUT_MS = 10000;
-const MAX_RETRIES = 3;
-const RETRY_DELAYS_MS = [1000, 2000, 4000]; // Exponential backoff
 export const SKILL_FILENAME = 'SKILL.md';
 
 // === Types ===
@@ -149,11 +146,8 @@ export async function fetchDefaultBranch(owner: string, repo: string): Promise<s
   const headers: Record<string, string> = { 'User-Agent': 'skillfish' };
   const url = `https://api.github.com/repos/${owner}/${repo}`;
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
-
   try {
-    const res = await fetchWithRetry(url, { headers, signal: controller.signal });
+    const res = await fetchWithRetry(url, { headers });
 
     checkRateLimit(res);
 
@@ -173,53 +167,7 @@ export async function fetchDefaultBranch(owner: string, repo: string): Promise<s
     return data.default_branch;
   } catch (err: unknown) {
     wrapApiError(err);
-  } finally {
-    clearTimeout(timeoutId);
   }
-}
-
-/**
- * Fetch with retry and exponential backoff.
- * Retries on network errors and 5xx responses.
- */
-export async function fetchWithRetry(
-  url: string,
-  options: RequestInit,
-  maxRetries: number = MAX_RETRIES,
-): Promise<Response> {
-  let lastError: Error | null = null;
-
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      const res = await fetch(url, options);
-
-      // Success or client error (4xx) - don't retry
-      if (res.ok || (res.status >= 400 && res.status < 500)) {
-        return res;
-      }
-
-      // Server error (5xx) - retry
-      if (res.status >= 500) {
-        lastError = new Error(`Server error: ${res.status}`);
-        if (attempt < maxRetries - 1) {
-          await sleep(RETRY_DELAYS_MS[attempt] || 4000);
-          continue;
-        }
-      }
-
-      return res;
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-
-      // Network error - retry
-      if (attempt < maxRetries - 1) {
-        await sleep(RETRY_DELAYS_MS[attempt] || 4000);
-        continue;
-      }
-    }
-  }
-
-  throw lastError || new Error('Max retries exceeded');
 }
 
 /**
@@ -255,13 +203,10 @@ export async function fetchSkillMdContent(
  */
 export async function fetchTreeSha(owner: string, repo: string, branch: string): Promise<string> {
   const headers: Record<string, string> = { 'User-Agent': 'skillfish' };
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}`;
 
   try {
-    const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}`;
-    const res = await fetchWithRetry(url, { headers, signal: controller.signal });
+    const res = await fetchWithRetry(url, { headers });
 
     checkRateLimit(res);
 
@@ -281,8 +226,6 @@ export async function fetchTreeSha(owner: string, repo: string, branch: string):
     return data.sha;
   } catch (err: unknown) {
     wrapApiError(err);
-  } finally {
-    clearTimeout(timeoutId);
   }
 }
 
@@ -301,13 +244,10 @@ export async function fetchRecursiveTree(
   branch: string,
 ): Promise<{ sha: string; tree: GitTreeItem[] }> {
   const headers: Record<string, string> = { 'User-Agent': 'skillfish' };
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
 
   try {
-    const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
-    const res = await fetchWithRetry(url, { headers, signal: controller.signal });
+    const res = await fetchWithRetry(url, { headers });
 
     checkRateLimit(res);
 
@@ -335,8 +275,6 @@ export async function fetchRecursiveTree(
     return { sha, tree };
   } catch (err: unknown) {
     wrapApiError(err);
-  } finally {
-    clearTimeout(timeoutId);
   }
 }
 

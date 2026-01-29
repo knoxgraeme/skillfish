@@ -5,7 +5,6 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-  fetchWithRetry,
   findAllSkillMdFiles,
   fetchRecursiveTree,
   getSkillSha,
@@ -14,6 +13,7 @@ import {
   NetworkError,
   GitHubApiError,
 } from '../lib/github.js';
+import { fetchWithRetry } from '../lib/http.js';
 import type { GitTreeItem } from '../utils.js';
 
 // Mock global fetch
