@@ -263,6 +263,14 @@ export interface SubmitJsonOutput extends BaseJsonOutput {
   skills_found: string[];
 }
 
+/**
+ * JSON output for the `init` command.
+ */
+export interface InitJsonOutput extends BaseJsonOutput {
+  created: { skill: string; agent: string; path: string }[];
+  skipped: { skill: string; agent: string; reason: string }[];
+}
+
 /** @deprecated Use AddJsonOutput instead */
 export type JsonOutput = AddJsonOutput;
 

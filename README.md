@@ -47,6 +47,7 @@ Learn more at [agentskills.io](https://agentskills.io).
 | Command | Description |
 |---------|-------------|
 | `skillfish add <owner/repo>` | Install skills |
+| `skillfish init` | Create a new skill |
 | `skillfish list` | View installed skills |
 | `skillfish remove [name]` | Remove skills |
 | `skillfish update` | Update installed skills |
@@ -59,6 +60,8 @@ All commands support `--json` for automation.
 ```bash
 skillfish add owner/repo             # Install from a repository
 skillfish add owner/repo --all       # Install all skills from repo
+skillfish init                       # Create a new skill (interactive)
+skillfish init --name my-skill       # Create with a specified name
 skillfish list                       # See what's installed
 skillfish update                     # Update all skills
 skillfish remove old-skill           # Remove a skill
@@ -116,6 +119,23 @@ skillfish add owner/repo --project          # Project only (./)
 skillfish add owner/repo --global           # Global only (~/)
 ```
 
+### init
+
+Create a new skill template with `SKILL.md` and optional directories.
+
+```bash
+skillfish init                                  # Interactive skill creation
+skillfish init --name my-skill                  # Specify skill name
+skillfish init --name my-skill --description "Does a thing"  # Non-interactive
+skillfish init --project                        # Create in current project (./)
+skillfish init --global                         # Create in home directory (~/)
+skillfish init --name my-skill --yes            # Skip all prompts
+skillfish init --author "your-name"             # Set author metadata
+skillfish init --license MIT                    # Set license
+```
+
+Interactive mode prompts for name, description, optional metadata (author, license), optional directories (`scripts/`, `references/`, `assets/`), install location, and target agents.
+
 ### list
 
 View installed skills.
@@ -163,10 +183,52 @@ skillfish submit owner/repo --yes                # Skip confirmation
 
 Your submission will be reviewed and added to [skill.fish](https://skill.fish) and [MCP Market](https://mcpmarket.com).
 
-<details>
-<summary>Exit Codes</summary>
+---
 
-Exit codes help agents and scripts understand command results without parsing error messages.
+## Non-Interactive Mode
+
+All commands work without prompts for use in scripts, CI pipelines, and automation. Non-interactive mode activates when:
+
+- The `--json` flag is passed, or
+- stdin is not a TTY (piped input, CI runners, cron jobs)
+
+In non-interactive mode, commands use default values where possible and error with guidance when required flags are missing.
+
+### Required flags
+
+| Command | Required | Defaults |
+|---------|----------|----------|
+| `add` | `<owner/repo>` + skill name, `--path`, or `--all` if repo has multiple skills | Location: global (`~/`), Agents: all detected |
+| `init` | `--name`, `--description` | Location: project (`./`), Agents: all detected |
+| `list` | (none) | Both locations, all agents |
+| `remove` | Skill name or `--all` | Both locations, all agents |
+| `update` | `--yes` to apply updates | All tracked skills |
+
+All commands accept `--project` or `--global` to override the default location.
+
+### Confirmation behavior
+
+Confirmation prompts are skipped in non-interactive mode. Commands that modify skills (`add`, `init`, `remove`) proceed automatically. The `update` command is the exception: `--json` without `--yes` runs in **check-only mode**, reporting outdated skills without applying changes.
+
+Use `--yes` to explicitly skip confirmations in interactive mode.
+
+### JSON output
+
+Pass `--json` to get structured output on stdout. All commands return a common shape:
+
+```json
+{
+  "success": true,
+  "exit_code": 0,
+  "errors": []
+}
+```
+
+Each command adds its own fields: `installed` and `skipped` (add), `created` and `skipped` (init), `removed` (remove), `outdated` and `updated` (update), `installed` and `agents_detected` (list).
+
+### Exit codes
+
+Exit codes are consistent across all commands:
 
 | Code | Name | Meaning |
 |------|------|---------|
@@ -176,14 +238,21 @@ Exit codes help agents and scripts understand command results without parsing er
 | 3 | Network Error | Network failure (timeout, rate limit) |
 | 4 | Not Found | Requested resource not found (skill, agent, repo) |
 
-JSON output includes `exit_code` for programmatic access:
+### CI example
 
 ```bash
-skillfish add owner/repo --json
-# Output includes: "exit_code": 0 (or error code)
-```
+# Install skills in CI (non-interactive, JSON output)
+skillfish add owner/repo --yes --json
 
-</details>
+# Create a skill template in CI
+skillfish init --name my-skill --description "My skill" --project --json
+
+# Check for outdated skills without applying
+skillfish update --json
+
+# Apply updates
+skillfish update --yes --json
+```
 
 ---
 
