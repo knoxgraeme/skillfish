@@ -6,7 +6,14 @@ import { Command } from 'commander';
 import { dirname, basename } from 'path';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
-import { parseFrontmatter, batchMap, isInputTTY, isTTY, type SubmitJsonOutput } from '../utils.js';
+import {
+  parseFrontmatter,
+  batchMap,
+  isInputTTY,
+  isTTY,
+  createSubmitJsonOutput,
+  type SubmitJsonOutput,
+} from '../utils.js';
 import {
   findAllSkillMdFiles,
   fetchSkillMdContent,
@@ -100,6 +107,13 @@ Examples:
       // Parse GitHub URL: https://github.com/owner/repo or github.com/owner/repo
       try {
         const url = new URL(repoArg.startsWith('http') ? repoArg : `https://${repoArg}`);
+        // Validate hostname to prevent malicious URLs like github.com.evil.com
+        if (url.hostname !== 'github.com' && url.hostname !== 'www.github.com') {
+          exitWithError(
+            'Only github.com URLs are supported. Use: https://github.com/owner/repo',
+            EXIT_CODES.INVALID_ARGS,
+          );
+        }
         const pathParts = url.pathname.split('/').filter(Boolean);
         if (pathParts.length < 2) {
           exitWithError(
@@ -168,10 +182,10 @@ Examples:
     // 4. Build submission payload (repo-level)
     const submissions: SkillSubmission[] = [
       {
-        skill_url: `https://github.com/${owner}/${repo}`,
+        url: `https://github.com/${owner}/${repo}`,
         owner,
         repo,
-        skill_name: repo,
+        skill: repo,
         path: '',
       },
     ];
@@ -198,8 +212,8 @@ Examples:
       const submission = result.submitted[0];
       if (submission?.success) {
         jsonOutput.submitted.push({
-          skill_name: repo,
-          skill_url: `https://github.com/${owner}/${repo}`,
+          skill: repo,
+          url: `https://github.com/${owner}/${repo}`,
           owner,
           repo,
           path: '',
@@ -208,7 +222,7 @@ Examples:
         jsonOutput.skills_found = skills.map((s) => s.name);
       } else {
         jsonOutput.failed.push({
-          skill_name: repo,
+          skill: repo,
           reason: submission?.error ?? 'Unknown error',
         });
       }
@@ -217,7 +231,15 @@ Examples:
         spinner.stop(pc.red('Submission failed'));
       }
 
-      const errorMsg = err instanceof Error ? err.message : String(err);
+      // Sanitize error message - only show known error types
+      let errorMsg = 'Unable to connect to registry';
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          errorMsg = 'Request timed out';
+        } else if (err.message.includes('registry') || err.message.includes('network')) {
+          errorMsg = err.message;
+        }
+      }
       exitWithError(`Registry submission failed: ${errorMsg}`, EXIT_CODES.NETWORK_ERROR, true);
     }
 
@@ -239,19 +261,6 @@ Examples:
   });
 
 // === Helper Functions ===
-
-/**
- * Create a fresh JSON output object for the submit command.
- */
-function createSubmitJsonOutput(): SubmitJsonOutput {
-  return {
-    success: true,
-    submitted: [],
-    failed: [],
-    skills_found: [],
-    errors: [],
-  };
-}
 
 /**
  * Discover skills in a repository.

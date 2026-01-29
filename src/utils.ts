@@ -247,8 +247,8 @@ export interface UpdateJsonOutput extends BaseJsonOutput {
  * Submitted skill information for submit command.
  */
 export interface SubmittedSkill {
-  skill_name: string;
-  skill_url: string;
+  skill: string;
+  url: string;
   owner: string;
   repo: string;
   path: string;
@@ -259,7 +259,7 @@ export interface SubmittedSkill {
  */
 export interface SubmitJsonOutput extends BaseJsonOutput {
   submitted: SubmittedSkill[];
-  failed: { skill_name: string; reason: string }[];
+  failed: { skill: string; reason: string }[];
   skills_found: string[];
 }
 
@@ -274,6 +274,19 @@ export function createJsonOutput(): AddJsonOutput {
     success: true,
     installed: [],
     skipped: [],
+    errors: [],
+  };
+}
+
+/**
+ * Create a fresh JSON output object for the submit command.
+ */
+export function createSubmitJsonOutput(): SubmitJsonOutput {
+  return {
+    success: true,
+    submitted: [],
+    failed: [],
+    skills_found: [],
     errors: [],
   };
 }
