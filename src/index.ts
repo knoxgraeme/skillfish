@@ -16,6 +16,7 @@ import { addCommand } from './commands/add.js';
 import { initCommand } from './commands/init.js';
 import { listCommand } from './commands/list.js';
 import { removeCommand } from './commands/remove.js';
+import { searchCommand } from './commands/search.js';
 import { updateCommand } from './commands/update.js';
 import { submitCommand } from './commands/submit.js';
 
@@ -87,6 +88,7 @@ program.addCommand(addCommand);
 program.addCommand(initCommand);
 program.addCommand(listCommand);
 program.addCommand(removeCommand);
+program.addCommand(searchCommand);
 program.addCommand(updateCommand);
 program.addCommand(submitCommand);
 

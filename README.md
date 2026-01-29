@@ -50,8 +50,9 @@ Learn more at [agentskills.io](https://agentskills.io).
 | `skillfish init` | Create a new skill |
 | `skillfish list` | View installed skills |
 | `skillfish remove [name]` | Remove skills |
+| `skillfish search <query>` | Search for skills on skill.fish |
 | `skillfish update` | Update installed skills |
-| `skillfish submit <repo>` | Submit skills to registry |
+| `skillfish submit <repo>` | Submit skills to skill.fish |
 
 All commands support `--json` for automation.
 
@@ -63,9 +64,10 @@ skillfish add owner/repo --all       # Install all skills from repo
 skillfish init                       # Create a new skill (interactive)
 skillfish init --name my-skill       # Create with a specified name
 skillfish list                       # See what's installed
+skillfish search github              # Search for skills
 skillfish update                     # Update all skills
 skillfish remove old-skill           # Remove a skill
-skillfish submit owner/repo          # Submit your skills to the registry
+skillfish submit owner/repo          # Submit your skills to skill.fish
 ```
 
 ## Supported Agents
@@ -161,6 +163,16 @@ skillfish remove my-skill --agent "Cursor" # Specific agent
 skillfish remove my-skill --yes           # Skip confirmation
 ```
 
+### search
+
+Search for skills on [skill.fish](https://skill.fish).
+
+```bash
+skillfish search github              # Search for skills
+skillfish search "code review"       # Search with multiple words
+skillfish search git --limit 10      # Limit results (default: 5, max: 50)
+```
+
 ### update
 
 Update installed skills to latest version.
@@ -173,7 +185,7 @@ skillfish update --json              # Check for updates (JSON output)
 
 ### submit
 
-Submit your skills to the registry for others to discover. Just paste a GitHub URL.
+Submit your skills to [skill.fish](https://skill.fish) for others to discover. Just paste a GitHub URL.
 
 ```bash
 skillfish submit https://github.com/owner/repo   # Paste any GitHub URL

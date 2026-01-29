@@ -271,6 +271,28 @@ export interface InitJsonOutput extends BaseJsonOutput {
   skipped: { skill: string; agent: string; reason: string }[];
 }
 
+/**
+ * Search result from the registry.
+ */
+export interface SearchResultItem {
+  name: string;
+  slug: string;
+  owner: string;
+  github: string;
+  url: string;
+  description: string;
+  stars: number;
+}
+
+/**
+ * JSON output for the `search` command.
+ */
+export interface SearchJsonOutput extends BaseJsonOutput {
+  query: string;
+  results: SearchResultItem[];
+  total_count: number;
+}
+
 /** @deprecated Use AddJsonOutput instead */
 export type JsonOutput = AddJsonOutput;
 

@@ -40,6 +40,7 @@ npm run typecheck      # TypeScript type checking
 - `src/commands/remove.ts` - Remove installed skills
 - `src/commands/update.ts` - Check for and apply updates to installed skills
 - `src/commands/submit.ts` - Submit skills to the registry (accepts GitHub URLs or owner/repo)
+- `src/commands/search.ts` - Search for skills in the registry
 
 ### Core Libraries
 
@@ -49,7 +50,7 @@ npm run typecheck      # TypeScript type checking
 - `src/lib/http.ts` - Shared HTTP utilities (fetchWithRetry with timeout and exponential backoff)
 - `src/lib/installer.ts` - Skill installation logic (downloads via giget tarball, validates SKILL.md exists, copies to agent directories)
 - `src/lib/manifest.ts` - Skill manifest handling (reads/writes .skillfish-manifest.json for tracking installed skill versions)
-- `src/lib/registry.ts` - Registry API client for skill submission to mcpmarket.com
+- `src/lib/registry.ts` - Registry API client for skill submission and search (mcpmarket.com)
 - `src/lib/constants.ts` - Exit codes (EXIT_CODES), machine-readable error codes (ERROR_CODES) for JSON output, and name validation utilities
 
 ### Utilities
