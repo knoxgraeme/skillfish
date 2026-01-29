@@ -192,6 +192,7 @@ export async function searchSkillsInRegistry(
   try {
     const params = new URLSearchParams({
       q: query,
+      type: 'skills',
       limit: String(limit),
     });
 
@@ -220,14 +221,15 @@ export async function searchSkillsInRegistry(
     }
 
     const data = (await res.json()) as {
-      tools?: Array<{
+      skills?: Array<{
         id: number;
         name: string;
         slug: string;
-        type: 'server' | 'skill';
         github: string;
-        owner_name: string;
-        owner_url: string;
+        owner?: {
+          name?: string;
+          url?: string;
+        };
         description: string;
         github_stars: number;
         relevance_score: number;
@@ -251,7 +253,7 @@ export async function searchSkillsInRegistry(
       };
     }
 
-    if (!data.tools || !Array.isArray(data.tools)) {
+    if (!data.skills || !Array.isArray(data.skills)) {
       return {
         success: true,
         results: [],
@@ -261,7 +263,7 @@ export async function searchSkillsInRegistry(
 
     // Validate and transform API response to our SearchResult format
     // Filter out malformed items that are missing required string fields
-    const results: SearchResult[] = data.tools
+    const results: SearchResult[] = data.skills
       .filter(
         (item) =>
           typeof item.name === 'string' &&
@@ -271,9 +273,9 @@ export async function searchSkillsInRegistry(
       .map((item) => ({
         name: item.name,
         slug: item.slug,
-        type: item.type,
-        owner: item.owner_name ?? '',
-        ownerUrl: item.owner_url ?? '',
+        type: 'skill' as const,
+        owner: item.owner?.name ?? '',
+        ownerUrl: item.owner?.url ?? '',
         github: item.github,
         description: item.description ?? '',
         stars: item.github_stars ?? 0,
