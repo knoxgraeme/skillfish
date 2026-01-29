@@ -1,6 +1,6 @@
 {
   "name": "skillfish",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "description": "All in one Skill manager for AI coding agents. Install, update, and sync Skills across Claude Code, Cursor, Copilot + more.",
   "type": "module",
   "bin": {
