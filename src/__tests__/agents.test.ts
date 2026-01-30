@@ -8,8 +8,9 @@ import { homedir } from 'os';
 import {
   AGENT_CONFIGS,
   detectAgent,
-  buildAgents,
-  getDetectedAgents,
+  detectAgentGlobally,
+  detectAgentInProject,
+  getDetectedAgentsForLocation,
   getAgentSkillDir,
   type AgentConfig,
 } from '../lib/agents.js';
@@ -120,81 +121,133 @@ describe('agents.ts', () => {
     });
   });
 
-  describe('buildAgents', () => {
-    it('returns array of agents with correct structure', () => {
-      mockExistsSync.mockReturnValue(false);
+  describe('detectAgentGlobally', () => {
+    const testConfig: AgentConfig = {
+      name: 'Test Agent',
+      dir: '.test/skills',
+      homePaths: ['.test/config.json', '.test'],
+      cwdPaths: ['.test'],
+    };
 
-      const agents = buildAgents();
-
-      expect(agents.length).toBe(AGENT_CONFIGS.length);
-      for (const agent of agents) {
-        expect(agent.name).toBeDefined();
-        expect(agent.dir).toBeDefined();
-        expect(typeof agent.detect).toBe('function');
-      }
-    });
-
-    it('detect function uses correct baseDir', () => {
+    it('returns true when homePath exists', () => {
       mockExistsSync.mockImplementation((path: string) => {
-        return path === '/custom/base/.claude';
+        return path === '/home/user/.test/config.json';
       });
 
-      const agents = buildAgents('/custom/base');
-      const claudeAgent = agents.find((a) => a.name === 'Claude Code');
+      expect(detectAgentGlobally(testConfig)).toBe(true);
+    });
 
-      expect(claudeAgent?.detect()).toBe(true);
+    it('returns false when no homePaths exist', () => {
+      mockExistsSync.mockReturnValue(false);
+      expect(detectAgentGlobally(testConfig)).toBe(false);
+    });
+
+    it('ignores cwdPaths', () => {
+      // Only cwdPath exists, not homePath
+      mockExistsSync.mockImplementation((path: string) => {
+        return path === '/some/project/.test';
+      });
+
+      expect(detectAgentGlobally(testConfig)).toBe(false);
     });
   });
 
-  describe('getDetectedAgents', () => {
+  describe('detectAgentInProject', () => {
+    const testConfig: AgentConfig = {
+      name: 'Test Agent',
+      dir: '.test/skills',
+      homePaths: ['.test/config.json'],
+      cwdPaths: ['.test'],
+    };
+
+    it('returns true when cwdPath exists in project', () => {
+      mockExistsSync.mockImplementation((path: string) => {
+        return path === '/project/.test';
+      });
+
+      expect(detectAgentInProject(testConfig, '/project')).toBe(true);
+    });
+
+    it('returns false when cwdPath does not exist', () => {
+      mockExistsSync.mockReturnValue(false);
+      expect(detectAgentInProject(testConfig, '/project')).toBe(false);
+    });
+
+    it('ignores homePaths', () => {
+      // Only homePath exists, not cwdPath
+      mockExistsSync.mockImplementation((path: string) => {
+        return path === '/home/user/.test/config.json';
+      });
+
+      expect(detectAgentInProject(testConfig, '/project')).toBe(false);
+    });
+  });
+
+  describe('getDetectedAgentsForLocation', () => {
     it('returns empty array when no agents detected', () => {
       mockExistsSync.mockReturnValue(false);
 
-      const detected = getDetectedAgents();
+      const detected = getDetectedAgentsForLocation('both');
 
       expect(detected).toEqual([]);
     });
 
-    it('returns only detected agents', () => {
-      // Only Claude Code paths exist
+    it('detects global agents with location=global', () => {
       mockExistsSync.mockImplementation((path: string) => {
-        return (
-          path === '/home/user/.claude/settings.json' ||
-          path === '/home/user/.claude/projects.json' ||
-          path === '/home/user/.claude/credentials.json'
-        );
+        return path === '/home/user/.claude/settings.json';
       });
 
-      const detected = getDetectedAgents();
+      const detected = getDetectedAgentsForLocation('global');
 
       expect(detected.length).toBe(1);
       expect(detected[0].name).toBe('Claude Code');
     });
 
-    it('returns multiple agents when multiple detected', () => {
-      // Claude and Cursor paths exist
+    it('detects project agents with location=project', () => {
+      mockExistsSync.mockImplementation((path: string) => {
+        return path === '/project/.claude';
+      });
+
+      const detected = getDetectedAgentsForLocation('project', '/project');
+
+      expect(detected.length).toBe(1);
+      expect(detected[0].name).toBe('Claude Code');
+    });
+
+    it('detects both global and project with location=both', () => {
       mockExistsSync.mockImplementation((path: string) => {
         return (
           path === '/home/user/.claude/settings.json' || path === '/home/user/.cursor/extensions'
         );
       });
 
-      const detected = getDetectedAgents();
+      const detected = getDetectedAgentsForLocation('both');
 
       expect(detected.length).toBe(2);
       expect(detected.map((a) => a.name)).toContain('Claude Code');
       expect(detected.map((a) => a.name)).toContain('Cursor');
     });
 
-    it('uses baseDir parameter for detection', () => {
+    it('location=global ignores project paths', () => {
+      // Only project path exists
       mockExistsSync.mockImplementation((path: string) => {
         return path === '/project/.claude';
       });
 
-      const detected = getDetectedAgents('/project');
+      const detected = getDetectedAgentsForLocation('global', '/project');
 
-      expect(detected.length).toBe(1);
-      expect(detected[0].name).toBe('Claude Code');
+      expect(detected.length).toBe(0);
+    });
+
+    it('location=project ignores global paths', () => {
+      // Only global path exists
+      mockExistsSync.mockImplementation((path: string) => {
+        return path === '/home/user/.claude/settings.json';
+      });
+
+      const detected = getDetectedAgentsForLocation('project', '/project');
+
+      expect(detected.length).toBe(0);
     });
   });
 

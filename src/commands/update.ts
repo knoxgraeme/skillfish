@@ -8,7 +8,7 @@ import { join } from 'path';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { printBanner } from '../lib/banner.js';
-import { getDetectedAgents, getAgentSkillDir, type Agent } from '../lib/agents.js';
+import { getDetectedAgentsForLocation, getAgentSkillDir, type Agent } from '../lib/agents.js';
 import { listInstalledSkillsInDir, installSkill } from '../lib/installer.js';
 import { readManifest, type SkillManifest } from '../lib/manifest.js';
 import {
@@ -95,8 +95,8 @@ Examples:
       p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim(`v${version}`)}`);
     }
 
-    // Detect agents
-    const detected = getDetectedAgents();
+    // Detect agents (check both global and project for updates)
+    const detected = getDetectedAgentsForLocation('both', process.cwd());
 
     if (detected.length === 0) {
       exitWithError(

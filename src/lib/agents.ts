@@ -127,17 +127,27 @@ export const AGENT_CONFIGS: readonly AgentConfig[] = [
 ];
 
 /**
- * Check if an agent is detected on the system.
- * Checks home directory paths first, then current working directory paths.
+ * Check if an agent is installed globally (in home directory).
  */
-export function detectAgent(config: AgentConfig, baseDir?: string): boolean {
+export function detectAgentGlobally(config: AgentConfig): boolean {
   const home = homedir();
-  const cwd = baseDir ?? process.cwd();
+  return config.homePaths.some((p) => existsSync(join(home, p)));
+}
 
-  return (
-    config.homePaths.some((p) => existsSync(join(home, p))) ||
-    config.cwdPaths.some((p) => existsSync(join(cwd, p)))
-  );
+/**
+ * Check if an agent is configured in a specific project directory.
+ */
+export function detectAgentInProject(config: AgentConfig, projectDir: string): boolean {
+  return config.cwdPaths.some((p) => existsSync(join(projectDir, p)));
+}
+
+/**
+ * Check if an agent is detected (globally OR in project).
+ * Use this for combined detection when location hasn't been chosen yet.
+ */
+export function detectAgent(config: AgentConfig, projectDir?: string): boolean {
+  const cwd = projectDir ?? process.cwd();
+  return detectAgentGlobally(config) || detectAgentInProject(config, cwd);
 }
 
 /**
@@ -150,21 +160,36 @@ export interface Agent {
 }
 
 /**
- * Build AGENTS array from config (preserves existing API).
+ * Location context for agent detection.
  */
-export function buildAgents(baseDir?: string): readonly Agent[] {
-  return AGENT_CONFIGS.map((config) => ({
-    name: config.name,
-    dir: config.dir,
-    detect: () => detectAgent(config, baseDir),
-  }));
-}
+export type DetectionLocation = 'global' | 'project' | 'both';
 
 /**
- * Get all detected agents.
+ * Get detected agents for a specific location context.
+ * - 'global': Only agents installed globally (homePaths)
+ * - 'project': Only agents configured in the project (cwdPaths)
+ * - 'both': Agents detected in either location (current behavior)
  */
-export function getDetectedAgents(baseDir?: string): readonly Agent[] {
-  return buildAgents(baseDir).filter((a) => a.detect());
+export function getDetectedAgentsForLocation(
+  location: DetectionLocation,
+  projectDir?: string,
+): readonly Agent[] {
+  const cwd = projectDir ?? process.cwd();
+
+  return AGENT_CONFIGS.filter((config) => {
+    switch (location) {
+      case 'global':
+        return detectAgentGlobally(config);
+      case 'project':
+        return detectAgentInProject(config, cwd);
+      case 'both':
+        return detectAgent(config, cwd);
+    }
+  }).map((config) => ({
+    name: config.name,
+    dir: config.dir,
+    detect: () => detectAgent(config, cwd),
+  }));
 }
 
 /**
