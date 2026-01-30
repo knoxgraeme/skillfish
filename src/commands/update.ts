@@ -113,20 +113,50 @@ Examples:
     }
 
     // Collect all tracked skills (skills with manifests)
-    const trackedSkills = collectTrackedSkills(detected);
+    const allTrackedSkills = collectTrackedSkills(detected);
+
+    // Filter out manifest-controlled skills (they should be updated via `skillfish install`)
+    const manifestSkills = allTrackedSkills.filter(
+      (s) => (s.manifest.source ?? 'manual') === 'manifest',
+    );
+    const trackedSkills = allTrackedSkills.filter(
+      (s) => (s.manifest.source ?? 'manual') !== 'manifest',
+    );
+
+    // Report skipped manifest skills
+    if (manifestSkills.length > 0 && !jsonMode) {
+      if (checkSpinner) {
+        checkSpinner.stop('Checking updates...');
+        checkSpinner = p.spinner();
+        checkSpinner.start('Checking for updates...');
+      }
+      // We'll show this after the spinner stops
+    }
 
     if (trackedSkills.length === 0) {
       if (checkSpinner) {
         checkSpinner.stop(pc.yellow('No tracked skills found'));
       }
 
+      // Show manifest skills message if any
+      if (manifestSkills.length > 0 && !jsonMode) {
+        console.log();
+        p.log.info(
+          pc.dim(
+            `${manifestSkills.length} skill${manifestSkills.length === 1 ? '' : 's'} controlled by manifest - update ${pc.cyan('.skillfish.json')} and run ${pc.cyan('skillfish install')} instead.`,
+          ),
+        );
+      }
+
       if (jsonMode) {
         outputJsonAndExit(EXIT_CODES.SUCCESS);
       }
 
-      console.log();
-      p.log.info(pc.dim("Skills installed before this version don't have tracking info."));
-      p.log.info(pc.dim('Reinstall skills with `skillfish add` to enable updates.'));
+      if (manifestSkills.length === 0) {
+        console.log();
+        p.log.info(pc.dim("Skills installed before this version don't have tracking info."));
+        p.log.info(pc.dim('Reinstall skills with `skillfish add` to enable updates.'));
+      }
       p.outro(pc.dim('Done'));
       process.exit(EXIT_CODES.SUCCESS);
     }
@@ -173,6 +203,16 @@ Examples:
 
     // No updates available
     if (outdated.length === 0) {
+      // Show manifest skills message if any
+      if (manifestSkills.length > 0 && !jsonMode) {
+        console.log();
+        p.log.info(
+          pc.dim(
+            `${manifestSkills.length} skill${manifestSkills.length === 1 ? '' : 's'} controlled by manifest - update ${pc.cyan('.skillfish.json')} and run ${pc.cyan('skillfish install')} instead.`,
+          ),
+        );
+      }
+
       if (jsonMode) {
         outputJsonAndExit(EXIT_CODES.SUCCESS);
       }
@@ -238,6 +278,8 @@ Examples:
           baseDir: skill.location === 'global' ? homedir() : process.cwd(),
           branch: skill.manifest.branch,
           sha: skill.remoteSha,
+          ref: skill.manifest.ref,
+          source: skill.manifest.source ?? 'manual',
         },
       );
 

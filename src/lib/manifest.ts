@@ -19,7 +19,13 @@ const SHA_PATTERN = /^[a-f0-9]{40}$/;
 /** Git branch name pattern (alphanumerics, dots, hyphens, underscores, slashes) */
 const BRANCH_PATTERN = /^[\w./-]+$/;
 
+/** Git ref pattern for tags, branches, or commit SHAs (more permissive than branch) */
+const REF_PATTERN = /^[\w./@-]+$/;
+
 // === Types ===
+
+/** How a skill was installed */
+export type SkillSource = 'manifest' | 'manual';
 
 /**
  * Manifest schema for tracking installed skills.
@@ -38,6 +44,10 @@ export interface SkillManifest {
   branch: string;
   /** Tree SHA at install time (from git/trees response) */
   sha: string;
+  /** User's pinned ref (e.g., "v1.0.0", "main") - preserves original request */
+  ref?: string;
+  /** How the skill was installed - defaults to 'manual' for backwards compatibility */
+  source?: SkillSource;
 }
 
 // === Functions ===
@@ -105,7 +115,7 @@ function isValidManifest(data: unknown): data is SkillManifest {
 
   const obj = data as Record<string, unknown>;
 
-  // Check types first
+  // Check required field types
   if (
     obj.version !== MANIFEST_VERSION ||
     typeof obj.owner !== 'string' ||
@@ -117,8 +127,16 @@ function isValidManifest(data: unknown): data is SkillManifest {
     return false;
   }
 
+  // Validate optional fields if present
+  if (obj.ref !== undefined && typeof obj.ref !== 'string') {
+    return false;
+  }
+  if (obj.source !== undefined && obj.source !== 'manifest' && obj.source !== 'manual') {
+    return false;
+  }
+
   // Validate content to prevent tampered manifests
-  const { owner, repo, path, branch, sha } = obj;
+  const { owner, repo, path, branch, sha, ref } = obj;
 
   // Owner and repo must be valid GitHub names
   if (!isValidName(owner) || !isValidName(repo)) {
@@ -138,6 +156,14 @@ function isValidManifest(data: unknown): data is SkillManifest {
   // SHA must be valid git SHA format (40 hex chars)
   if (!SHA_PATTERN.test(sha)) {
     return false;
+  }
+
+  // Ref must match git ref pattern if present (tags, branches, or commit SHAs)
+  if (ref !== undefined) {
+    // Allow semver tags (v1.0.0), branches (main, feature/foo), and short/full SHAs
+    if (!REF_PATTERN.test(ref) || ref.length > 255) {
+      return false;
+    }
   }
 
   return true;
