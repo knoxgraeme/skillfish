@@ -10,7 +10,13 @@ import pc from 'picocolors';
 import { printBanner } from '../lib/banner.js';
 import { getDetectedAgentsForLocation, getAgentSkillDir, type Agent } from '../lib/agents.js';
 import { listInstalledSkillsInDir } from '../lib/installer.js';
-import { readManifest, type SkillManifest } from '../lib/manifest.js';
+import {
+  readManifest,
+  hasManifest,
+  healManifest,
+  writeManifest,
+  type SkillManifest,
+} from '../lib/manifest.js';
 import {
   writeProjectManifest,
   getProjectManifestPath,
@@ -19,12 +25,19 @@ import {
   PROJECT_MANIFEST_VERSION,
 } from '../lib/project-manifest.js';
 import { EXIT_CODES, type ExitCode } from '../lib/constants.js';
-import { isTTY, type BundleJsonOutput } from '../utils.js';
+import { isTTY, isInputTTY, type BundleJsonOutput } from '../utils.js';
+import type { DetectionLocation } from '../lib/agents.js';
 
 // === Types ===
 
 interface BundleCommandOptions {
   global?: boolean;
+  project?: boolean;
+}
+
+interface LocationResult {
+  baseDir: string;
+  location: DetectionLocation;
 }
 
 /**
@@ -42,6 +55,7 @@ interface DiscoveredSkill {
 export const bundleCommand = new Command('bundle')
   .description('Bundle installed skills into a .skillfish.json manifest')
   .option('--global', 'Bundle global skills to ~/.skillfish.json')
+  .option('--project', 'Bundle project skills to ./.skillfish.json')
   .helpOption('-h, --help', 'Display help for command')
   .addHelpText(
     'after',
@@ -55,6 +69,26 @@ Examples:
     const jsonMode = command.parent?.opts().json ?? false;
     const version = command.parent?.opts().version ?? '0.0.0';
     const globalFlag = options.global ?? false;
+    const projectFlag = options.project ?? false;
+
+    // Reject conflicting flags
+    if (globalFlag && projectFlag) {
+      if (jsonMode) {
+        console.log(
+          JSON.stringify({
+            success: false,
+            exit_code: EXIT_CODES.INVALID_ARGS,
+            errors: ['Cannot specify both --global and --project'],
+            skills: [],
+            saved_to: null,
+            skipped_local: [],
+          }),
+        );
+        process.exit(EXIT_CODES.INVALID_ARGS);
+      }
+      p.log.error('Cannot specify both --global and --project');
+      process.exit(EXIT_CODES.INVALID_ARGS);
+    }
 
     // JSON output state
     const jsonOutput: BundleJsonOutput = {
@@ -92,16 +126,15 @@ Examples:
       p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim(`v${version}`)}`);
     }
 
-    // Determine scope
-    const location = globalFlag ? 'global' : 'project';
-    const baseDir = globalFlag ? homedir() : process.cwd();
-    const manifestPath = getProjectManifestPath(globalFlag);
+    // Determine scope (interactive if no flags specified)
+    const { baseDir, location } = await selectBundleLocation(projectFlag, globalFlag, jsonMode);
+    const manifestPath = getProjectManifestPath(location === 'global');
 
     // Detect agents for this location
     const detected = getDetectedAgentsForLocation(location, process.cwd());
 
     if (detected.length === 0) {
-      const locationLabel = globalFlag ? 'globally' : 'in this project';
+      const locationLabel = location === 'global' ? 'globally' : 'in this project';
       exitWithError(
         `No agents detected ${locationLabel}. Install Claude Code, Cursor, or another supported agent first.`,
         EXIT_CODES.GENERAL_ERROR,
@@ -134,12 +167,6 @@ Examples:
       process.exit(EXIT_CODES.SUCCESS);
     }
 
-    if (spinner) {
-      spinner.stop(
-        `Found ${pc.cyan(discoveredSkills.length.toString())} skill${discoveredSkills.length === 1 ? '' : 's'}`,
-      );
-    }
-
     // Build skill entries from discovered skills (only external skills)
     const { entries: skillEntries, skippedLocal } = buildSkillEntries(discoveredSkills);
 
@@ -147,16 +174,35 @@ Examples:
     const uniqueEntries = [...new Set(skillEntries)];
     const uniqueSkipped = [...new Set(skippedLocal)];
 
+    // Calculate counts for clear messaging
+    const totalScanned = discoveredSkills.length;
+    const localCount = uniqueSkipped.length;
+    const externalCount = uniqueEntries.length;
+    const duplicateCount = skillEntries.length - uniqueEntries.length;
+
+    // Show scanning result with breakdown
+    if (spinner) {
+      const parts: string[] = [];
+      if (externalCount > 0) {
+        parts.push(`${externalCount} external`);
+      }
+      if (localCount > 0) {
+        parts.push(`${localCount} local`);
+      }
+      if (duplicateCount > 0) {
+        parts.push(`${duplicateCount} duplicates across agents`);
+      }
+
+      const breakdown = parts.length > 0 ? ` (${parts.join(', ')})` : '';
+      spinner.stop(`Scanned ${pc.cyan(totalScanned.toString())} skill installations${breakdown}`);
+    }
+
     // Record skipped local skills in JSON output
     jsonOutput.skipped_local = uniqueSkipped;
 
-    // Show skipped local skills
+    // Show skipped local skills detail
     if (uniqueSkipped.length > 0 && !jsonMode) {
-      p.log.info(
-        pc.dim(
-          `Skipped ${uniqueSkipped.length} local skill${uniqueSkipped.length === 1 ? '' : 's'}: ${uniqueSkipped.join(', ')}`,
-        ),
-      );
+      p.log.info(pc.dim(`Local skills: ${uniqueSkipped.join(', ')}`));
       p.log.info(
         pc.dim('Local skills are version-controlled with your project, not in the manifest.'),
       );
@@ -191,6 +237,23 @@ Examples:
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       exitWithError(`Failed to write manifest: ${msg}`, EXIT_CODES.GENERAL_ERROR);
+    }
+
+    // Update per-skill manifests to mark them as manifest-managed
+    // This prevents "manual install conflict" errors when running `skillfish install`
+    for (const skill of discoveredSkills) {
+      if (skill.manifest && skill.manifest.source !== 'manifest') {
+        const updatedManifest: SkillManifest = {
+          ...skill.manifest,
+          source: 'manifest',
+        };
+        try {
+          writeManifest(skill.path, updatedManifest);
+        } catch {
+          // Non-fatal: log warning but continue
+          addError(`Warning: Could not update manifest for ${skill.name}`);
+        }
+      }
     }
 
     // Output results
@@ -240,8 +303,12 @@ function scanInstalledSkills(agents: readonly Agent[], baseDir: string): Discove
       }
       seenPaths.add(skillPath);
 
-      // Read manifest if available
-      const manifest = readManifest(skillPath);
+      // Read manifest if available, try to heal if invalid
+      let manifest = readManifest(skillPath);
+      if (!manifest && hasManifest(skillPath)) {
+        // Manifest exists but failed validation - try to heal it
+        manifest = healManifest(skillPath);
+      }
 
       discovered.push({
         name: skillName,
@@ -293,4 +360,58 @@ function buildSkillEntries(skills: DiscoveredSkill[]): BuildSkillEntriesResult {
   }
 
   return { entries, skippedLocal };
+}
+
+/**
+ * Select bundle location interactively or from flags.
+ */
+async function selectBundleLocation(
+  projectFlag: boolean,
+  globalFlag: boolean,
+  jsonMode: boolean,
+): Promise<LocationResult> {
+  // If flag specified, use it
+  if (projectFlag) {
+    if (!jsonMode) {
+      p.log.info(`Location: ${pc.cyan('Project')} ${pc.dim('(.skillfish.json)')}`);
+    }
+    return { baseDir: process.cwd(), location: 'project' };
+  }
+  if (globalFlag) {
+    if (!jsonMode) {
+      p.log.info(`Location: ${pc.cyan('Global')} ${pc.dim('(~/.skillfish.json)')}`);
+    }
+    return { baseDir: homedir(), location: 'global' };
+  }
+
+  // Non-TTY or JSON mode defaults to project (bundle what's here)
+  if (!isInputTTY() || jsonMode) {
+    return { baseDir: process.cwd(), location: 'project' };
+  }
+
+  // Interactive selection
+  const locationChoice = await p.select({
+    message: 'Bundle location',
+    options: [
+      {
+        value: 'project' as const,
+        label: 'Project',
+        hint: 'Create ./.skillfish.json',
+      },
+      {
+        value: 'global' as const,
+        label: 'Global',
+        hint: 'Create ~/.skillfish.json',
+      },
+    ],
+  });
+
+  if (p.isCancel(locationChoice)) {
+    p.cancel('Cancelled');
+    process.exit(EXIT_CODES.SUCCESS);
+  }
+
+  return locationChoice === 'project'
+    ? { baseDir: process.cwd(), location: 'project' }
+    : { baseDir: homedir(), location: 'global' };
 }

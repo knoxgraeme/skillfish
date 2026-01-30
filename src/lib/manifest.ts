@@ -104,6 +104,80 @@ export function hasManifest(skillDir: string): boolean {
 }
 
 /**
+ * Attempt to heal an invalid manifest file.
+ * Reads the file loosely, fixes known issues (like old source format),
+ * rewrites it, and returns the healed manifest.
+ *
+ * @param skillDir - Path to the skill directory
+ * @returns Healed manifest or null if unrecoverable
+ */
+export function healManifest(skillDir: string): SkillManifest | null {
+  const manifestPath = join(skillDir, MANIFEST_FILENAME);
+
+  if (!existsSync(manifestPath)) {
+    return null;
+  }
+
+  try {
+    const content = readFileSync(manifestPath, 'utf-8');
+    const data = JSON.parse(content) as Record<string, unknown>;
+
+    // Check if it has the basic required fields
+    if (
+      data.version !== MANIFEST_VERSION ||
+      typeof data.owner !== 'string' ||
+      typeof data.repo !== 'string' ||
+      typeof data.path !== 'string' ||
+      typeof data.branch !== 'string' ||
+      typeof data.sha !== 'string'
+    ) {
+      return null; // Missing required fields, can't heal
+    }
+
+    // Validate owner/repo/path/branch/sha content
+    if (!isValidName(data.owner) || !isValidName(data.repo)) {
+      return null;
+    }
+    if (data.path !== '.' && !isValidPath(data.path)) {
+      return null;
+    }
+
+    // Fix source field if it's not a valid value
+    let source: SkillSource | undefined;
+    if (data.source === 'manifest' || data.source === 'manual') {
+      source = data.source;
+    } else if (typeof data.source === 'string') {
+      // Old format like "github:owner/repo/path#branch" - treat as manual
+      source = 'manual';
+    }
+
+    // Build the healed manifest
+    const healed: SkillManifest = {
+      version: MANIFEST_VERSION,
+      owner: data.owner,
+      repo: data.repo,
+      path: data.path,
+      branch: data.branch,
+      sha: data.sha,
+    };
+
+    if (typeof data.ref === 'string') {
+      healed.ref = data.ref;
+    }
+    if (source) {
+      healed.source = source;
+    }
+
+    // Write the healed manifest back
+    writeManifest(skillDir, healed);
+
+    return healed;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Type guard to validate manifest structure and content.
  * Validates both field types and content to prevent tampered manifests
  * from causing unintended API requests or file operations.
