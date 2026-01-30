@@ -63,6 +63,7 @@ Examples:
       errors: [],
       skills: [],
       saved_to: null,
+      skipped_local: [],
     };
 
     function addError(message: string): void {
@@ -139,11 +140,42 @@ Examples:
       );
     }
 
-    // Build skill entries from discovered skills
-    const skillEntries = buildSkillEntries(discoveredSkills);
+    // Build skill entries from discovered skills (only external skills)
+    const { entries: skillEntries, skippedLocal } = buildSkillEntries(discoveredSkills);
 
     // Deduplicate entries (same skill may be installed to multiple agents)
     const uniqueEntries = [...new Set(skillEntries)];
+    const uniqueSkipped = [...new Set(skippedLocal)];
+
+    // Record skipped local skills in JSON output
+    jsonOutput.skipped_local = uniqueSkipped;
+
+    // Show skipped local skills
+    if (uniqueSkipped.length > 0 && !jsonMode) {
+      p.log.info(
+        pc.dim(
+          `Skipped ${uniqueSkipped.length} local skill${uniqueSkipped.length === 1 ? '' : 's'}: ${uniqueSkipped.join(', ')}`,
+        ),
+      );
+      p.log.info(
+        pc.dim('Local skills are version-controlled with your project, not in the manifest.'),
+      );
+    }
+
+    // Handle case where all skills were local
+    if (uniqueEntries.length === 0) {
+      if (jsonMode) {
+        outputJsonAndExit(EXIT_CODES.SUCCESS);
+      }
+
+      console.log();
+      p.log.info(pc.dim('No external skills to bundle.'));
+      p.log.info(
+        pc.dim(`Run ${pc.cyan('skillfish add owner/repo')} to install external skills first.`),
+      );
+      p.outro(pc.dim('Done'));
+      process.exit(EXIT_CODES.SUCCESS);
+    }
 
     // Create manifest
     const manifest: ProjectManifest = {
@@ -224,15 +256,27 @@ function scanInstalledSkills(agents: readonly Agent[], baseDir: string): Discove
 }
 
 /**
- * Build skill entry strings from discovered skills.
- * Uses manifest data when available, falls back to skill name when not.
+ * Result of building skill entries.
  */
-function buildSkillEntries(skills: DiscoveredSkill[]): string[] {
+interface BuildSkillEntriesResult {
+  /** Skill entries that can be bundled (external skills with manifests) */
+  entries: string[];
+  /** Names of local skills that were skipped */
+  skippedLocal: string[];
+}
+
+/**
+ * Build skill entry strings from discovered skills.
+ * Only includes external skills (those with manifests from GitHub).
+ * Skips local skills (created via `skillfish init`) that have no manifest.
+ */
+function buildSkillEntries(skills: DiscoveredSkill[]): BuildSkillEntriesResult {
   const entries: string[] = [];
+  const skippedLocal: string[] = [];
 
   for (const skill of skills) {
     if (skill.manifest) {
-      // Build entry from manifest
+      // External skill - has manifest with GitHub origin
       const entry = formatSkillEntry({
         owner: skill.manifest.owner,
         repo: skill.manifest.repo,
@@ -242,13 +286,11 @@ function buildSkillEntries(skills: DiscoveredSkill[]): string[] {
       });
       entries.push(entry);
     } else {
-      // No manifest - we can't determine the source
-      // This skill was installed before manifest tracking
-      // We'll use the skill name as a placeholder, but warn the user
-      // (In practice, this will be rare for skills installed with newer versions)
-      entries.push(`unknown/${skill.name}`);
+      // Local skill (no manifest) - skip it
+      // These are created via `skillfish init` and version-controlled with the project
+      skippedLocal.push(skill.name);
     }
   }
 
-  return entries;
+  return { entries, skippedLocal };
 }

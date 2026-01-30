@@ -299,6 +299,8 @@ export interface SearchJsonOutput extends BaseJsonOutput {
 export interface BundleJsonOutput extends BaseJsonOutput {
   skills: string[];
   saved_to: string | null;
+  /** Local skills skipped (no manifest, created via `skillfish init`) */
+  skipped_local: string[];
 }
 
 /**
