@@ -8,7 +8,12 @@ import { join } from 'path';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { printBanner } from '../lib/banner.js';
-import { getDetectedAgents, getAgentSkillDir, type Agent } from '../lib/agents.js';
+import {
+  getDetectedAgentsForLocation,
+  getAgentSkillDir,
+  type Agent,
+  type DetectionLocation,
+} from '../lib/agents.js';
 import { listInstalledSkillsInDir } from '../lib/installer.js';
 import { EXIT_CODES, type ExitCode } from '../lib/constants.js';
 import { isTTY, isInputTTY, type ListJsonOutput, type InstalledSkill } from '../utils.js';
@@ -78,20 +83,53 @@ Examples:
       process.exit(exitCode);
     }
 
+    // Validate flag conflicts
+    if (projectFlag && globalFlag) {
+      exitWithError(
+        'Cannot use both --project and --global. Choose one.',
+        EXIT_CODES.INVALID_ARGS,
+        {
+          installed: [],
+          agents_detected: [],
+        },
+      );
+    }
+
     // Determine which locations to check
     // By default, check both global and project. Flags narrow it down.
     const checkGlobal = !projectFlag; // Check global unless --project is set
     const checkProject = !globalFlag; // Check project unless --global is set
 
-    // Detect agents
-    const detected = getDetectedAgents();
+    // Determine detection location based on flags
+    const detectionLocation: DetectionLocation =
+      projectFlag && !globalFlag ? 'project' : globalFlag && !projectFlag ? 'global' : 'both';
 
+    // Detect agents for the appropriate location
+    const detected = getDetectedAgentsForLocation(detectionLocation, process.cwd());
+
+    // When a specific location flag is used and no agents found, return empty results (not an error)
+    // Only error when no flags specified (location='both') and no agents found anywhere
     if (detected.length === 0) {
-      exitWithError(
-        'No agents detected. Install Claude Code, Cursor, or another supported agent first.',
-        EXIT_CODES.GENERAL_ERROR,
-        { installed: [], agents_detected: [] },
-      );
+      if (detectionLocation === 'both') {
+        exitWithError(
+          'No agents detected. Install Claude Code, Cursor, or another supported agent first.',
+          EXIT_CODES.GENERAL_ERROR,
+          { installed: [], agents_detected: [] },
+        );
+      }
+
+      // For --project or --global with no agents, return success with empty list
+      if (jsonMode) {
+        outputJsonAndExit(EXIT_CODES.SUCCESS, { installed: [], agents_detected: [] });
+      }
+
+      if (isTTY()) {
+        printBanner();
+      }
+      p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim('Installed skills')}`);
+      const locationLabel = detectionLocation === 'project' ? 'project' : 'globally';
+      p.outro(pc.dim(`No agents configured ${locationLabel}`));
+      process.exit(EXIT_CODES.SUCCESS);
     }
 
     // Helper to collect skills for given agents
@@ -234,86 +272,98 @@ Examples:
       });
     }
 
-    // Interactive mode: show agent selector
+    // Interactive mode: location-first flow
     if (isInputTTY()) {
       if (isTTY() && !jsonMode) {
         printBanner();
       }
       p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim('Installed skills')}`);
 
-      // Step 1: Build options with skill counts in label (always visible)
-      const agentOptions = detected.map((agent) => {
-        const { installed } = collectSkills([agent]);
-        const count = installed.length;
-        return {
-          value: agent.name,
-          label: `${agent.name} ${pc.dim(`(${count})`)}`,
-        };
+      // Step 1: Choose location first
+      const locationChoice = await p.select({
+        message: 'View skills in',
+        options: [
+          { value: 'global' as const, label: 'Global', hint: 'Skills in ~/' },
+          { value: 'project' as const, label: 'Project', hint: 'Skills in ./' },
+        ],
       });
 
-      const selected = await p.select({
-        message: 'Select an agent',
-        options: agentOptions,
-      });
-
-      if (p.isCancel(selected)) {
+      if (p.isCancel(locationChoice)) {
         p.cancel('Cancelled');
         process.exit(EXIT_CODES.SUCCESS);
       }
 
-      const selectedAgent = detected.find((a) => a.name === selected);
-      if (!selectedAgent) {
-        process.exit(EXIT_CODES.SUCCESS);
-      }
+      // Step 2: Detect agents for the chosen location
+      const locationAgents = getDetectedAgentsForLocation(locationChoice, process.cwd());
+      const isLocal = locationChoice === 'project';
+      const locationLabel = isLocal ? 'Project (./)' : 'Global (~/)';
 
-      // Step 2: Get skills for selected agent
-      const { globalSkills, projectSkills } = collectSkills([selectedAgent]);
-      const hasBothLocations = globalSkills.length > 0 && projectSkills.length > 0;
-
-      if (globalSkills.length === 0 && projectSkills.length === 0) {
-        p.log.info(`No skills installed for ${pc.cyan(selectedAgent.name)}`);
+      if (locationAgents.length === 0) {
+        const hint = isLocal
+          ? 'No agents configured in this project.'
+          : 'No agents installed globally.';
+        p.log.info(pc.dim(hint));
         p.outro(pc.dim('Done'));
         process.exit(EXIT_CODES.SUCCESS);
       }
 
-      // Step 3: If both locations have skills, let user choose location
-      let skillsToShow: InstalledSkill[];
-      let locationLabel: string;
-
-      if (hasBothLocations) {
-        const locationOptions = [
-          { value: 'global' as const, label: `Global (~/) ${pc.dim(`(${globalSkills.length})`)}` },
-          {
-            value: 'project' as const,
-            label: `Project (./) ${pc.dim(`(${projectSkills.length})`)}`,
-          },
-        ];
-
-        const selectedLocation = await p.select({
-          message: 'Select location',
-          options: locationOptions,
-        });
-
-        if (p.isCancel(selectedLocation)) {
-          p.cancel('Cancelled');
-          process.exit(EXIT_CODES.SUCCESS);
+      // Step 3: Collect skills for this location only
+      const collectSkillsForLocation = (agents: readonly Agent[]): InstalledSkill[] => {
+        const skills: InstalledSkill[] = [];
+        const baseDir = isLocal ? process.cwd() : homedir();
+        for (const agent of agents) {
+          const skillDir = getAgentSkillDir(agent, baseDir);
+          const installed = listInstalledSkillsInDir(skillDir);
+          for (const skill of installed) {
+            skills.push({
+              agent: agent.name,
+              skill,
+              path: join(skillDir, skill),
+              location: locationChoice,
+            });
+          }
         }
+        return skills;
+      };
 
-        skillsToShow = selectedLocation === 'global' ? globalSkills : projectSkills;
-        locationLabel = selectedLocation === 'global' ? 'Global (~/)' : 'Project (./)';
-      } else {
-        // Only one location has skills, use that
-        if (globalSkills.length > 0) {
-          skillsToShow = globalSkills;
-          locationLabel = 'Global (~/)';
-        } else {
-          skillsToShow = projectSkills;
-          locationLabel = 'Project (./)';
-        }
+      const allSkills = collectSkillsForLocation(locationAgents);
+
+      if (allSkills.length === 0) {
+        p.log.info(`No skills installed in ${locationLabel}`);
+        p.outro(pc.dim('Done'));
+        process.exit(EXIT_CODES.SUCCESS);
       }
 
-      // Step 4: Display skills for selected location
-      displaySkillsForLocation(skillsToShow, locationLabel);
+      // Step 4: If multiple agents have skills, let user select one (or show all)
+      const agentSkillCounts = new Map<string, number>();
+      for (const skill of allSkills) {
+        agentSkillCounts.set(skill.agent, (agentSkillCounts.get(skill.agent) || 0) + 1);
+      }
+
+      if (agentSkillCounts.size === 1) {
+        // Only one agent has skills, show them directly
+        displaySkillsForLocation(allSkills, locationLabel);
+        process.exit(EXIT_CODES.SUCCESS);
+      }
+
+      // Multiple agents - let user choose
+      const agentOptions = Array.from(agentSkillCounts.entries()).map(([name, count]) => ({
+        value: name,
+        label: `${name} ${pc.dim(`(${count})`)}`,
+      }));
+
+      const selectedAgent = await p.select({
+        message: 'Select an agent',
+        options: agentOptions,
+      });
+
+      if (p.isCancel(selectedAgent)) {
+        p.cancel('Cancelled');
+        process.exit(EXIT_CODES.SUCCESS);
+      }
+
+      const filteredSkills = allSkills.filter((s) => s.agent === selectedAgent);
+      displaySkillsForLocation(filteredSkills, locationLabel);
       process.exit(EXIT_CODES.SUCCESS);
     }
 

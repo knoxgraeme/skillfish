@@ -21,7 +21,12 @@ import {
   isTTY,
   type AddJsonOutput,
 } from '../utils.js';
-import { getDetectedAgents, type Agent, AGENT_CONFIGS } from '../lib/agents.js';
+import {
+  getDetectedAgentsForLocation,
+  type Agent,
+  type DetectionLocation,
+  AGENT_CONFIGS,
+} from '../lib/agents.js';
 import {
   findAllSkillMdFiles,
   fetchSkillMdContent,
@@ -136,6 +141,14 @@ Examples:
       const globalFlag = options.global ?? false;
       let explicitPath: string | null = options.path ?? null;
 
+      // Validate flag conflicts
+      if (projectFlag && globalFlag) {
+        exitWithError(
+          'Cannot use both --project and --global. Choose one.',
+          EXIT_CODES.INVALID_ARGS,
+        );
+      }
+
       // Validate --path if provided
       if (explicitPath !== null) {
         if (!isValidPath(explicitPath)) {
@@ -235,20 +248,29 @@ Examples:
       } = discoveryResult;
 
       // 2. Determine install location (global vs project)
-      const baseDir = await selectInstallLocation(projectFlag, globalFlag, jsonMode);
+      const { baseDir, location } = await selectInstallLocation(projectFlag, globalFlag, jsonMode);
+      const isLocal = location === 'project';
 
-      // 3. Select agents to install to
-      const detected = getDetectedAgents();
+      // 3. Select agents to install to (location-aware detection)
+      const detected = getDetectedAgentsForLocation(location, process.cwd());
 
       if (detected.length === 0) {
-        const errorMsg =
-          'No agents detected. Install Claude Code, Cursor, or another supported agent first.';
+        // No agents detected for this location - provide helpful guidance
+        const locationLabel = isLocal ? 'this project' : 'your system';
+        const errorMsg = `No agents detected in ${locationLabel}.`;
+        const hint = isLocal
+          ? 'Create an agent directory (e.g., .claude/) or use --global to install globally.'
+          : 'Install Claude Code, Cursor, or another supported agent first.';
+
         if (jsonMode) {
-          addError(errorMsg);
+          addError(`${errorMsg} ${hint}`);
           outputJsonAndExit(EXIT_CODES.GENERAL_ERROR);
         }
         p.log.error(errorMsg);
-        p.outro(pc.dim('https://skill.fish/agents'));
+        p.log.info(pc.dim(hint));
+        if (!isLocal) {
+          p.outro(pc.dim('https://skill.fish/agents'));
+        }
         process.exit(EXIT_CODES.GENERAL_ERROR);
       }
 
@@ -264,7 +286,6 @@ Examples:
         targetAgents = detected;
       } else {
         // Interactive: let user choose from detected agents
-        const isLocal = baseDir !== homedir();
         targetAgents = await selectAgents(detected, isLocal, jsonMode);
       }
 
@@ -331,7 +352,6 @@ Examples:
         }
 
         // Log installed/skipped for this skill
-        const isLocal = baseDir !== homedir();
         const pathPrefix = isLocal ? '.' : '~';
 
         for (const installed of result.installed) {
@@ -396,11 +416,16 @@ Examples:
 
 // === Helper Functions ===
 
+interface LocationResult {
+  baseDir: string;
+  location: DetectionLocation;
+}
+
 async function selectInstallLocation(
   projectFlag: boolean,
   globalFlag: boolean,
   jsonMode: boolean,
-): Promise<string> {
+): Promise<LocationResult> {
   // If flag specified, use it
   if (projectFlag) {
     if (!jsonMode) {
@@ -408,7 +433,7 @@ async function selectInstallLocation(
         `Location: ${pc.cyan('Project')} ${pc.dim('(./')}${pc.dim(AGENT_CONFIGS[0].dir)}${pc.dim(')')}`,
       );
     }
-    return process.cwd();
+    return { baseDir: process.cwd(), location: 'project' };
   }
   if (globalFlag) {
     if (!jsonMode) {
@@ -416,37 +441,39 @@ async function selectInstallLocation(
         `Location: ${pc.cyan('Global')} ${pc.dim('(~/')}${pc.dim(AGENT_CONFIGS[0].dir)}${pc.dim(')')}`,
       );
     }
-    return homedir();
+    return { baseDir: homedir(), location: 'global' };
   }
 
   // Non-TTY or JSON mode defaults to global
   if (!isInputTTY() || jsonMode) {
-    return homedir();
+    return { baseDir: homedir(), location: 'global' };
   }
 
   // Interactive selection
-  const location = await p.select({
+  const locationChoice = await p.select({
     message: 'Install location',
     options: [
       {
-        value: 'global',
+        value: 'global' as const,
         label: 'Global',
         hint: 'Available in all projects',
       },
       {
-        value: 'project',
+        value: 'project' as const,
         label: 'Project',
         hint: 'For this project only',
       },
     ],
   });
 
-  if (p.isCancel(location)) {
+  if (p.isCancel(locationChoice)) {
     p.cancel('Cancelled');
     process.exit(EXIT_CODES.SUCCESS);
   }
 
-  return location === 'project' ? process.cwd() : homedir();
+  return locationChoice === 'project'
+    ? { baseDir: process.cwd(), location: 'project' }
+    : { baseDir: homedir(), location: 'global' };
 }
 
 async function selectAgents(

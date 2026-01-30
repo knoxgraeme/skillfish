@@ -9,7 +9,12 @@ import { existsSync, rmSync } from 'fs';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { printBanner } from '../lib/banner.js';
-import { getDetectedAgents, getAgentSkillDir, type Agent } from '../lib/agents.js';
+import {
+  getDetectedAgentsForLocation,
+  getAgentSkillDir,
+  type Agent,
+  type DetectionLocation,
+} from '../lib/agents.js';
 import { listInstalledSkillsInDir } from '../lib/installer.js';
 import { isTTY, isInputTTY } from '../utils.js';
 import { EXIT_CODES, type ExitCode } from '../lib/constants.js';
@@ -102,20 +107,40 @@ Examples:
     const globalFlag = options.global ?? false;
     const targetAgentName = options.agent;
 
+    // Validate flag conflicts
+    if (projectFlag && globalFlag) {
+      exitWithError(
+        'Cannot use both --project and --global. Choose one.',
+        EXIT_CODES.INVALID_ARGS,
+        true,
+      );
+    }
+
     // Determine which locations to check
     // By default, check both global and project. Flags narrow it down.
     const checkGlobal = !projectFlag; // Check global unless --project is set
     const checkProject = !globalFlag; // Check project unless --global is set
 
-    // Detect agents
-    const detected = getDetectedAgents();
+    // Determine detection location based on flags
+    const detectionLocation: DetectionLocation =
+      projectFlag && !globalFlag ? 'project' : globalFlag && !projectFlag ? 'global' : 'both';
+
+    // Detect agents for the appropriate location
+    const detected = getDetectedAgentsForLocation(detectionLocation, process.cwd());
 
     if (detected.length === 0) {
-      exitWithError(
-        'No agents detected. Install Claude Code, Cursor, or another supported agent first.',
-        EXIT_CODES.GENERAL_ERROR,
-        true, // useClackLog
-      );
+      const locationHint =
+        detectionLocation === 'project'
+          ? 'No agents configured in this project.'
+          : detectionLocation === 'global'
+            ? 'No agents installed globally.'
+            : 'No agents detected.';
+      const suggestion =
+        detectionLocation === 'project'
+          ? ' Create an agent directory (e.g., .claude/) or use --global.'
+          : ' Install Claude Code, Cursor, or another supported agent first.';
+
+      exitWithError(locationHint + suggestion, EXIT_CODES.GENERAL_ERROR, true);
     }
 
     // Filter to target agent if specified
