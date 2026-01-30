@@ -3,7 +3,7 @@
  * Handles downloading, validating, and installing skills to agent directories.
  */
 
-import { existsSync, mkdirSync, cpSync, rmSync, lstatSync, readdirSync } from 'fs';
+import { existsSync, mkdirSync, cpSync, rmSync, lstatSync, readdirSync, renameSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
@@ -186,34 +186,105 @@ export async function installSkill(
         continue;
       }
 
-      // Create parent directory and remove existing if force
+      // Create parent directory
       mkdirSync(join(baseDir, agent.dir), { recursive: true, mode: 0o700 });
+
+      // Atomic install: backup existing directory before overwrite (allows rollback on failure)
+      const backupDir = `${destDir}.skillfish-backup`;
+      let hasBackup = false;
+
       if (existsSync(destDir)) {
-        rmSync(destDir, { recursive: true });
+        // Remove any stale backup from previous failed install
+        if (existsSync(backupDir)) {
+          // Security: check if backup is a symlink before recursive delete
+          const backupStat = lstatSync(backupDir);
+          if (backupStat.isSymbolicLink()) {
+            rmSync(backupDir);
+          } else {
+            rmSync(backupDir, { recursive: true });
+          }
+        }
+        try {
+          renameSync(destDir, backupDir);
+          hasBackup = true;
+        } catch (renameErr) {
+          // Handle cross-filesystem case (EXDEV) - fall back to delete without backup
+          if ((renameErr as NodeJS.ErrnoException).code === 'EXDEV') {
+            result.warnings.push(
+              `${skillName}: Cross-filesystem install, backup protection disabled`,
+            );
+            rmSync(destDir, { recursive: true });
+          } else {
+            throw renameErr;
+          }
+        }
       }
 
-      // Use safe copy to skip symlinks (security: prevents symlink attacks)
-      const copyResult = safeCopyDir(tmpDir, destDir);
-      result.warnings.push(...copyResult.warnings.map((w) => `${skillName}: ${w}`));
+      try {
+        // Use safe copy to skip symlinks (security: prevents symlink attacks)
+        const copyResult = safeCopyDir(tmpDir, destDir);
+        result.warnings.push(...copyResult.warnings.map((w) => `${skillName}: ${w}`));
 
-      // Write manifest for tracking if SHA is provided
-      if (sha && branch) {
-        const manifest: SkillManifest = {
-          version: MANIFEST_VERSION,
-          owner,
-          repo,
-          path: skillPath === SKILL_FILENAME ? '.' : skillPath,
-          branch,
-          sha,
-        };
-        writeManifest(destDir, manifest);
+        // Write manifest for tracking if SHA is provided
+        // Manifest failure is non-critical - skill works, just update tracking is broken
+        if (sha && branch) {
+          try {
+            const manifest: SkillManifest = {
+              version: MANIFEST_VERSION,
+              owner,
+              repo,
+              path: skillPath === SKILL_FILENAME ? '.' : skillPath,
+              branch,
+              sha,
+            };
+            writeManifest(destDir, manifest);
+          } catch (manifestErr) {
+            const msg = manifestErr instanceof Error ? manifestErr.message : String(manifestErr);
+            result.warnings.push(
+              `${skillName}: Installed but manifest write failed (update tracking disabled): ${msg}`,
+            );
+          }
+        }
+
+        // Success - remove backup (non-critical, don't fail install if cleanup fails)
+        if (hasBackup) {
+          try {
+            rmSync(backupDir, { recursive: true, force: true });
+          } catch {
+            result.warnings.push(
+              `${skillName}: Installed successfully but backup cleanup failed at ${backupDir}`,
+            );
+          }
+        }
+
+        result.installed.push({
+          skill: skillName,
+          agent: agent.name,
+          path: destDir,
+        });
+      } catch (copyErr) {
+        // Rollback on failure - restore the original skill
+        if (hasBackup) {
+          try {
+            if (existsSync(destDir)) {
+              rmSync(destDir, { recursive: true, force: true });
+            }
+            renameSync(backupDir, destDir);
+            result.warnings.push(
+              `${skillName}: Installation failed for ${agent.name}, restored previous version`,
+            );
+          } catch (rollbackErr) {
+            // Critical: rollback failed - preserve backup for manual recovery
+            const rollbackMsg =
+              rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr);
+            result.warnings.push(
+              `${skillName}: CRITICAL - Installation failed and rollback failed for ${agent.name}. ` +
+                `Manual recovery may be needed from ${backupDir}. Rollback error: ${rollbackMsg}`,
+            );
+          }
+        }
+        throw copyErr;
       }
-
-      result.installed.push({
-        skill: skillName,
-        agent: agent.name,
-        path: destDir,
-      });
     }
   } catch (err: unknown) {
     result.failed = true;
