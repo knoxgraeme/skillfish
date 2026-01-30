@@ -568,6 +568,17 @@ Examples:
       errorMsg?: string;
     }
 
+    // Track progress for spinner updates
+    let completedCount = 0;
+    const totalCount = toInstall.length;
+
+    // Start spinner for installation progress
+    let installSpinner: ReturnType<typeof p.spinner> | null = null;
+    if (!jsonMode && totalCount > 0) {
+      installSpinner = p.spinner();
+      installSpinner.start(`Installing skills... (0/${totalCount})`);
+    }
+
     const installResults = await batchMap(
       toInstall,
       async (action): Promise<InstallResult> => {
@@ -605,6 +616,11 @@ Examples:
           );
 
           if (result.failed) {
+            // Update progress spinner even on failure
+            completedCount++;
+            if (installSpinner) {
+              installSpinner.message(`Installing skills... (${completedCount}/${totalCount})`);
+            }
             return {
               skillName,
               success: false,
@@ -621,6 +637,12 @@ Examples:
           // Record warnings as errors
           for (const warning of result.warnings) {
             addError(warning);
+          }
+
+          // Update progress spinner
+          completedCount++;
+          if (installSpinner) {
+            installSpinner.message(`Installing skills... (${completedCount}/${totalCount})`);
           }
 
           return {
@@ -640,6 +662,12 @@ Examples:
             errorMsg = err instanceof Error ? err.message : String(err);
           }
 
+          // Update progress spinner even on failure
+          completedCount++;
+          if (installSpinner) {
+            installSpinner.message(`Installing skills... (${completedCount}/${totalCount})`);
+          }
+
           return {
             skillName,
             success: false,
@@ -650,6 +678,11 @@ Examples:
       },
       INSTALL_CONCURRENCY,
     );
+
+    // Stop the installation spinner
+    if (installSpinner) {
+      installSpinner.stop(`Installed ${totalCount} skill${totalCount === 1 ? '' : 's'}`);
+    }
 
     // Process results and update counts (count skills, not installations)
     let successCount = 0;
