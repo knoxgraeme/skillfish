@@ -9,6 +9,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { printBanner } from '../lib/banner.js';
+import { trackCommand } from '../telemetry.js';
 import {
   getDetectedAgentsForLocation,
   getAgentSkillDir,
@@ -219,6 +220,9 @@ Examples:
         `${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim(`v${version}`)} ${pc.dim('· Create a skill')}`,
       );
     }
+
+    // Track command usage (fire and forget)
+    void trackCommand('init');
 
     const skipPrompts = options.yes ?? false;
     const projectFlag = options.project ?? false;

@@ -6,6 +6,7 @@ import { Command } from 'commander';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { printBanner } from '../lib/banner.js';
+import { trackCommand } from '../telemetry.js';
 import { searchSkillsInRegistry, type SearchResult } from '../lib/registry.js';
 import { EXIT_CODES, type ExitCode } from '../lib/constants.js';
 import { isTTY, truncate, type SearchJsonOutput, type SearchResultItem } from '../utils.js';
@@ -100,6 +101,9 @@ Examples:
       printBanner();
       p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim('Search')}`);
     }
+
+    // Track command usage (fire and forget)
+    void trackCommand('search');
 
     // Show spinner while searching
     let response;

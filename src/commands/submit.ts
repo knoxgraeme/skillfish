@@ -6,6 +6,7 @@ import { Command } from 'commander';
 import { dirname, basename } from 'path';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
+import { trackCommand } from '../telemetry.js';
 import {
   parseFrontmatter,
   batchMap,
@@ -96,6 +97,9 @@ Examples:
       console.log();
       p.intro(`${pc.bgCyan(pc.black(' skillfish submit '))} ${pc.dim(`v${version}`)}`);
     }
+
+    // Track command usage (fire and forget)
+    void trackCommand('submit');
 
     const skipConfirm = options.yes ?? false;
 

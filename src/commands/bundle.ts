@@ -8,6 +8,7 @@ import { join } from 'path';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { printBanner } from '../lib/banner.js';
+import { trackCommand } from '../telemetry.js';
 import { getDetectedAgentsForLocation, getAgentSkillDir, type Agent } from '../lib/agents.js';
 import { listInstalledSkillsInDir } from '../lib/installer.js';
 import {
@@ -126,6 +127,9 @@ Examples:
       printBanner();
       p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim(`v${version}`)}`);
     }
+
+    // Track command usage (fire and forget)
+    void trackCommand('bundle');
 
     // Determine scope (interactive if no flags specified)
     const { baseDir, location } = await selectBundleLocation(projectFlag, globalFlag, jsonMode);

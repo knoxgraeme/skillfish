@@ -8,6 +8,7 @@ import { join } from 'path';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { printBanner } from '../lib/banner.js';
+import { trackCommand } from '../telemetry.js';
 import {
   getDetectedAgentsForLocation,
   getAgentSkillDir,
@@ -94,6 +95,9 @@ Examples:
         },
       );
     }
+
+    // Track command usage (fire and forget)
+    void trackCommand('list');
 
     // Determine which locations to check
     // By default, check both global and project. Flags narrow it down.

@@ -8,7 +8,7 @@ import { dirname, basename } from 'path';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { printBanner } from '../lib/banner.js';
-import { trackInstall } from '../telemetry.js';
+import { trackCommand, trackInstall } from '../telemetry.js';
 import {
   isValidPath,
   parseFrontmatter,
@@ -133,6 +133,9 @@ Examples:
         printBanner();
         p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim(`v${version}`)}`);
       }
+
+      // Track command usage (fire and forget)
+      void trackCommand('add');
 
       const force = options.force ?? false;
       const trustSource = options.yes ?? false;
@@ -292,7 +295,6 @@ Examples:
       // Install each selected skill
       let totalInstalled = 0;
       let totalSkipped = 0;
-      const telemetryPromises: Promise<void>[] = [];
 
       // SECURITY: Ask for confirmation before installation (unless --yes is used)
       // Single confirmation for all selected skills
@@ -381,15 +383,10 @@ Examples:
         totalInstalled += result.installed.length;
         totalSkipped += result.skipped.length;
 
-        // Track successful installs (telemetry with timeout)
+        // Track successful installs (fire and forget)
         if (result.installed.length > 0) {
-          telemetryPromises.push(trackInstall(owner, repo, skillName));
+          void trackInstall(owner, repo);
         }
-      }
-
-      // Wait for telemetry to complete (with timeout built into trackInstall)
-      if (telemetryPromises.length > 0) {
-        await Promise.all(telemetryPromises);
       }
 
       // Summary

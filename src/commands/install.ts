@@ -9,6 +9,7 @@ import { join } from 'path';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { printBanner } from '../lib/banner.js';
+import { trackCommand, trackInstall } from '../telemetry.js';
 import {
   getDetectedAgentsForLocation,
   getAgentSkillDir,
@@ -163,6 +164,9 @@ Examples:
       printBanner();
       p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim(`v${version}`)}`);
     }
+
+    // Track command usage (fire and forget)
+    void trackCommand('install');
 
     // Determine scope (interactive if no flags specified)
     const { location, baseDir, manifestPath } = await selectInstallLocation(
@@ -717,6 +721,8 @@ Examples:
 
       if (result.success) {
         successCount++;
+        // Track successful installs (fire and forget)
+        void trackInstall(action.entry.owner, action.entry.repo);
         if (!jsonMode) {
           // Show which agents it was installed to if it's a partial install
           const agentCount = action.targetAgents.length;
