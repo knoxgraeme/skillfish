@@ -21,7 +21,7 @@ import {
 } from '../lib/github.js';
 import type { GitTreeItem } from '../utils.js';
 import { EXIT_CODES, type ExitCode } from '../lib/constants.js';
-import { isInputTTY, isTTY, type UpdateJsonOutput } from '../utils.js';
+import { isInputTTY, isTTY, batchMap, type UpdateJsonOutput } from '../utils.js';
 
 // === Types ===
 
@@ -113,20 +113,50 @@ Examples:
     }
 
     // Collect all tracked skills (skills with manifests)
-    const trackedSkills = collectTrackedSkills(detected);
+    const allTrackedSkills = collectTrackedSkills(detected);
+
+    // Filter out manifest-controlled skills (they should be updated via `skillfish install`)
+    const manifestSkills = allTrackedSkills.filter(
+      (s) => (s.manifest.source ?? 'manual') === 'manifest',
+    );
+    const trackedSkills = allTrackedSkills.filter(
+      (s) => (s.manifest.source ?? 'manual') !== 'manifest',
+    );
+
+    // Report skipped manifest skills
+    if (manifestSkills.length > 0 && !jsonMode) {
+      if (checkSpinner) {
+        checkSpinner.stop('Checking updates...');
+        checkSpinner = p.spinner();
+        checkSpinner.start('Checking for updates...');
+      }
+      // We'll show this after the spinner stops
+    }
 
     if (trackedSkills.length === 0) {
       if (checkSpinner) {
         checkSpinner.stop(pc.yellow('No tracked skills found'));
       }
 
+      // Show manifest skills message if any
+      if (manifestSkills.length > 0 && !jsonMode) {
+        console.log();
+        p.log.info(
+          pc.dim(
+            `${manifestSkills.length} skill${manifestSkills.length === 1 ? '' : 's'} controlled by manifest - update ${pc.cyan('skillfish.json')} and run ${pc.cyan('skillfish install')} instead.`,
+          ),
+        );
+      }
+
       if (jsonMode) {
         outputJsonAndExit(EXIT_CODES.SUCCESS);
       }
 
-      console.log();
-      p.log.info(pc.dim("Skills installed before this version don't have tracking info."));
-      p.log.info(pc.dim('Reinstall skills with `skillfish add` to enable updates.'));
+      if (manifestSkills.length === 0) {
+        console.log();
+        p.log.info(pc.dim("Skills installed before this version don't have tracking info."));
+        p.log.info(pc.dim('Reinstall skills with `skillfish add` to enable updates.'));
+      }
       p.outro(pc.dim('Done'));
       process.exit(EXIT_CODES.SUCCESS);
     }
@@ -173,6 +203,16 @@ Examples:
 
     // No updates available
     if (outdated.length === 0) {
+      // Show manifest skills message if any
+      if (manifestSkills.length > 0 && !jsonMode) {
+        console.log();
+        p.log.info(
+          pc.dim(
+            `${manifestSkills.length} skill${manifestSkills.length === 1 ? '' : 's'} controlled by manifest - update ${pc.cyan('skillfish.json')} and run ${pc.cyan('skillfish install')} instead.`,
+          ),
+        );
+      }
+
       if (jsonMode) {
         outputJsonAndExit(EXIT_CODES.SUCCESS);
       }
@@ -213,51 +253,98 @@ Examples:
       }
     }
 
-    // Apply updates
+    // Apply updates in parallel with bounded concurrency
+    const UPDATE_CONCURRENCY = 5;
+
+    interface UpdateResult {
+      skill: (typeof outdated)[0];
+      success: boolean;
+      errorMsg?: string;
+    }
+
+    // Track progress for spinner updates
+    let completedCount = 0;
+    const totalCount = outdated.length;
+
+    // Start spinner for update progress
+    let updateSpinner: ReturnType<typeof p.spinner> | null = null;
+    if (!jsonMode && totalCount > 0) {
+      updateSpinner = p.spinner();
+      updateSpinner.start(`Updating skills... (0/${totalCount})`);
+    }
+
+    const updateResults = await batchMap(
+      outdated,
+      async (skill): Promise<UpdateResult> => {
+        try {
+          const result = await installSkill(
+            skill.manifest.owner,
+            skill.manifest.repo,
+            skill.manifest.path,
+            skill.skill,
+            [skill.agent],
+            {
+              force: true,
+              baseDir: skill.location === 'global' ? homedir() : process.cwd(),
+              branch: skill.manifest.branch,
+              sha: skill.remoteSha,
+              ref: skill.manifest.ref,
+              source: skill.manifest.source ?? 'manual',
+            },
+          );
+
+          // Update progress spinner
+          completedCount++;
+          if (updateSpinner) {
+            updateSpinner.message(`Updating skills... (${completedCount}/${totalCount})`);
+          }
+
+          if (result.failed) {
+            return { skill, success: false, errorMsg: result.failureReason };
+          }
+
+          return { skill, success: true };
+        } catch (err) {
+          // Update progress spinner even on error
+          completedCount++;
+          if (updateSpinner) {
+            updateSpinner.message(`Updating skills... (${completedCount}/${totalCount})`);
+          }
+
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          return { skill, success: false, errorMsg };
+        }
+      },
+      UPDATE_CONCURRENCY,
+    );
+
+    // Stop the update spinner
+    if (updateSpinner) {
+      updateSpinner.stop(`Updated ${totalCount} skill${totalCount === 1 ? '' : 's'}`);
+    }
+
+    // Process results
     let updatedCount = 0;
     let failedCount = 0;
 
-    for (let i = 0; i < outdated.length; i++) {
-      const skill = outdated[i];
-      const progress = `[${i + 1}/${outdated.length}]`;
-
-      let updateSpinner: ReturnType<typeof p.spinner> | null = null;
-      if (!jsonMode) {
-        updateSpinner = p.spinner();
-        updateSpinner.start(`${progress} Updating ${skill.skill}...`);
-      }
-
-      const result = await installSkill(
-        skill.manifest.owner,
-        skill.manifest.repo,
-        skill.manifest.path,
-        skill.skill,
-        [skill.agent],
-        {
-          force: true,
-          baseDir: skill.location === 'global' ? homedir() : process.cwd(),
-          branch: skill.manifest.branch,
-          sha: skill.remoteSha,
-        },
-      );
-
-      if (result.failed) {
-        failedCount++;
-        if (updateSpinner) {
-          updateSpinner.stop(pc.red(`${progress} ${skill.skill} failed`));
-        }
-        addError(`Failed to update ${skill.skill}: ${result.failureReason}`);
-      } else {
+    for (const result of updateResults) {
+      if (result.success) {
         updatedCount++;
-        if (updateSpinner) {
-          updateSpinner.stop(pc.green(`${progress} ${skill.skill} updated`));
-        }
         jsonOutput.updated.push({
-          skill: skill.skill,
-          agent: skill.agent.name,
-          path: skill.path,
-          location: skill.location,
+          skill: result.skill.skill,
+          agent: result.skill.agent.name,
+          path: result.skill.path,
+          location: result.skill.location,
         });
+        if (!jsonMode) {
+          console.log(`  ${pc.green('✓')} ${result.skill.skill} updated`);
+        }
+      } else {
+        failedCount++;
+        addError(`Failed to update ${result.skill.skill}: ${result.errorMsg}`);
+        if (!jsonMode) {
+          console.log(`  ${pc.red('✗')} ${result.skill.skill} failed: ${result.errorMsg}`);
+        }
       }
     }
 

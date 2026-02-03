@@ -293,6 +293,29 @@ export interface SearchJsonOutput extends BaseJsonOutput {
   total_count: number;
 }
 
+/**
+ * JSON output for the `bundle` command.
+ */
+export interface BundleJsonOutput extends BaseJsonOutput {
+  skills: string[];
+  saved_to: string | null;
+  /** Local skills skipped (no manifest, created via `skillfish init`) */
+  skipped_local: string[];
+}
+
+/**
+ * JSON output for the `install` command.
+ */
+export interface InstallJsonOutput extends BaseJsonOutput {
+  manifest_path: string | null;
+  dry_run: boolean;
+  skills_found: string[];
+  installed: InstalledSkill[];
+  skipped: { skill: string; reason: string }[];
+  removed: { skill: string; agent: string }[];
+  conflicts: { skill: string; reason: string }[];
+}
+
 /** @deprecated Use AddJsonOutput instead */
 export type JsonOutput = AddJsonOutput;
 

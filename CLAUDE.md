@@ -41,6 +41,8 @@ npm run typecheck      # TypeScript type checking
 - `src/commands/update.ts` - Check for and apply updates to installed skills
 - `src/commands/submit.ts` - Submit skills to the registry (accepts GitHub URLs or owner/repo)
 - `src/commands/search.ts` - Search for skills in the registry
+- `src/commands/bundle.ts` - Create `skillfish.json` manifest from installed skills (marks skills as manifest-managed)
+- `src/commands/install.ts` - Install/sync skills from `skillfish.json` manifest (adds new, updates changed refs, removes stale)
 
 ### Core Libraries
 
@@ -49,7 +51,8 @@ npm run typecheck      # TypeScript type checking
 - `src/lib/github.ts` - GitHub API functions (tree fetching, rate limit handling)
 - `src/lib/http.ts` - Shared HTTP utilities (fetchWithRetry with timeout and exponential backoff)
 - `src/lib/installer.ts` - Skill installation logic (downloads via giget tarball, validates SKILL.md exists, copies to agent directories)
-- `src/lib/manifest.ts` - Skill manifest handling (reads/writes .skillfish-manifest.json for tracking installed skill versions)
+- `src/lib/manifest.ts` - Per-skill manifest handling (reads/writes `.skillfish.json` inside each skill directory for tracking origin and version)
+- `src/lib/project-manifest.ts` - Project manifest handling (reads/writes `skillfish.json` at project or home root for declarative skill installation)
 - `src/lib/registry.ts` - Registry API client for skill submission and search (mcpmarket.com)
 - `src/lib/constants.ts` - Exit codes (EXIT_CODES), machine-readable error codes (ERROR_CODES) for JSON output, and name validation utilities
 
@@ -101,6 +104,31 @@ All commands in `src/commands/` follow this structure. New commands must match t
 
 **JSON output types** are defined in `src/utils.ts` and extend `BaseJsonOutput` (`success`, `exit_code`, `errors`). Each command adds its own fields (e.g., `installed`, `created`, `removed`, `outdated`).
 
+### Manifest System
+
+Two distinct manifest files work together for skill tracking:
+
+**Per-skill manifest** (`.skillfish.json` inside each skill directory):
+- Tracks skill origin: `owner`, `repo`, `path`, `branch`, `sha`, `ref`
+- `name` field (v2): installed directory name, used for matching
+- `source` field: `'manifest'` or `'manual'` (undefined defaults to `'manual'`)
+- Written by `installer.ts` during installation
+- Key function: `getManifestKey(manifest)` returns `"owner/repo/path"` for matching
+
+**Project manifest** (`skillfish.json` at project root or `~/`):
+- Declarative list of skills to install: `{ "version": 1, "skills": ["owner/repo", "owner/repo@v1.0.0"] }`
+- Created by `skillfish bundle`, consumed by `skillfish install`
+- Key function: `buildManifestKey(owner, repo, path)` returns matching key format
+
+**Critical: The `source` field determines removal behavior:**
+- `source: 'manifest'` — skill can be auto-removed by `skillfish install` when removed from project manifest
+- `source: 'manual'` (or undefined) — skill is protected from auto-removal
+- `skillfish add` sets source to undefined (manual)
+- `skillfish bundle` updates existing skills to `source: 'manifest'`
+- `skillfish install` sets `source: 'manifest'` for new installs
+
+**Removal logic** (`install.ts`): A skill is removed only if `source === 'manifest'` AND its key is NOT in the project manifest. This protects manually installed skills.
+
 ## Adding Agent Support
 
 Add entry to `AGENT_CONFIGS` in `src/lib/agents.ts`:
@@ -128,5 +156,6 @@ Update CLAUDE.md when:
 - Adding new npm scripts
 - Adding terminal output that uses raw ANSI escapes (document NO_COLOR compliance)
 - Changing banner or help styling patterns
+- Modifying manifest schema, matching logic, or `source` field behavior
 
 Keep this file focused on architecture and patterns. User-facing documentation belongs in README.md.

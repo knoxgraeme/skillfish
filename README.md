@@ -53,6 +53,8 @@ Learn more at [agentskills.io](https://agentskills.io).
 | `skillfish remove [name]` | Remove skills |
 | `skillfish search <query>` | Search for skills on skill.fish |
 | `skillfish update` | Update installed skills |
+| `skillfish bundle` | Create a manifest from installed skills |
+| `skillfish install` | Install skills from a manifest |
 | `skillfish submit <repo>` | Submit skills to skill.fish |
 
 All commands support `--json` for automation.
@@ -69,7 +71,53 @@ skillfish search github              # Search for skills
 skillfish update                     # Update all skills
 skillfish remove old-skill           # Remove a skill
 skillfish submit owner/repo          # Submit your skills to skill.fish
+skillfish bundle                     # Create skillfish.json from installed skills
+skillfish install                    # Sync skills from manifest
+skillfish install --dry-run          # Preview what would change
 ```
+
+## Team Skill Sync
+
+Share skills across your team by committing a `skillfish.json` manifest to your repository.
+
+**Setup (one developer):**
+```bash
+skillfish add owner/repo             # Install skills your team needs
+skillfish bundle                     # Create skillfish.json manifest
+git add skillfish.json && git commit -m "Add skill manifest"
+```
+
+**Sync (other developers):**
+```bash
+skillfish install                    # Install skills from manifest
+```
+
+The manifest tracks external skills only. Local skills (created with `skillfish init`) are version-controlled directly in your project.
+
+### How It Works
+
+1. `skillfish bundle` scans your installed skills and creates `skillfish.json`
+2. `skillfish install` reads the manifest and syncs your local skills to match:
+   - **Installs** skills listed in the manifest
+   - **Updates** skills when the ref changes
+   - **Removes** manifest-managed skills that are no longer listed
+3. Manually installed skills (`skillfish add`) are protected from removal
+
+### Manifest Format
+
+```json
+{
+  "version": 1,
+  "skills": [
+    "owner/repo",
+    "owner/repo@v1.0.0",
+    "owner/repo/path/to/skill",
+    "owner/repo@main/skills/my-skill"
+  ]
+}
+```
+
+Skills can be pinned to a specific ref (tag, branch, or commit) using `@ref` syntax.
 
 ## Supported Agents
 
@@ -184,6 +232,32 @@ skillfish update --yes               # Update all without prompting
 skillfish update --json              # Check for updates (JSON output)
 ```
 
+### bundle
+
+Create a `skillfish.json` manifest from currently installed skills.
+
+```bash
+skillfish bundle                     # Bundle project skills to ./skillfish.json
+skillfish bundle --global            # Bundle global skills to ~/skillfish.json
+skillfish bundle --json              # Output bundled skills as JSON
+```
+
+Local skills (created with `skillfish init`) are excluded from the manifest since they're version-controlled with your project.
+
+### install
+
+Install skills from a `skillfish.json` manifest.
+
+```bash
+skillfish install                    # Install from manifest (auto-detects location)
+skillfish install --project          # Install from ./skillfish.json
+skillfish install --global           # Install from ~/skillfish.json
+skillfish install --dry-run          # Preview changes without installing
+skillfish install --yes              # Skip confirmation prompts
+```
+
+When a skill is removed from the manifest, `skillfish install` removes it from your system. Manually installed skills are never removed automatically.
+
 ### submit
 
 Submit your skills to [skill.fish](https://skill.fish) for others to discover. Just paste a GitHub URL.
@@ -216,6 +290,8 @@ In non-interactive mode, commands use default values where possible and error wi
 | `list` | (none) | Both locations, all agents |
 | `remove` | Skill name or `--all` | Both locations, all agents |
 | `update` | `--yes` to apply updates | All tracked skills |
+| `bundle` | (none) | Location: project (`./`) |
+| `install` | (none) | Location: project (`./`), `--yes` to apply |
 
 All commands accept `--project` or `--global` to override the default location.
 

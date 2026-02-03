@@ -16,6 +16,7 @@ import {
   type DetectionLocation,
 } from '../lib/agents.js';
 import { listInstalledSkillsInDir } from '../lib/installer.js';
+import { readManifest } from '../lib/manifest.js';
 import { isTTY, isInputTTY } from '../utils.js';
 import { EXIT_CODES, type ExitCode } from '../lib/constants.js';
 import type { RemoveJsonOutput } from '../utils.js';
@@ -35,6 +36,8 @@ interface SkillToRemove {
   agent: Agent;
   path: string;
   location: 'global' | 'project';
+  /** Whether this skill is managed by a skillfish.json manifest */
+  isManifestControlled: boolean;
 }
 
 // === Command Definition ===
@@ -170,7 +173,15 @@ Examples:
             const skillPath = join(globalDir, skill);
             if (!seenPaths.has(skillPath)) {
               seenPaths.add(skillPath);
-              skills.push({ skill, agent, path: skillPath, location: 'global' });
+              const manifest = readManifest(skillPath);
+              const isManifestControlled = manifest?.source === 'manifest';
+              skills.push({
+                skill,
+                agent,
+                path: skillPath,
+                location: 'global',
+                isManifestControlled,
+              });
             }
           }
         }
@@ -181,7 +192,15 @@ Examples:
             const skillPath = join(projectDir, skill);
             if (!seenPaths.has(skillPath)) {
               seenPaths.add(skillPath);
-              skills.push({ skill, agent, path: skillPath, location: 'project' });
+              const manifest = readManifest(skillPath);
+              const isManifestControlled = manifest?.source === 'manifest';
+              skills.push({
+                skill,
+                agent,
+                path: skillPath,
+                location: 'project',
+                isManifestControlled,
+              });
             }
           }
         }
@@ -229,7 +248,15 @@ Examples:
           const skillPath = join(globalDir, skill);
           if (!seenPaths.has(skillPath)) {
             seenPaths.add(skillPath);
-            skills.push({ skill, agent, path: skillPath, location: 'global' });
+            const manifest = readManifest(skillPath);
+            const isManifestControlled = manifest?.source === 'manifest';
+            skills.push({
+              skill,
+              agent,
+              path: skillPath,
+              location: 'global',
+              isManifestControlled,
+            });
           }
         }
       }
@@ -240,12 +267,42 @@ Examples:
           const skillPath = join(projectDir, skill);
           if (!seenPaths.has(skillPath)) {
             seenPaths.add(skillPath);
-            skills.push({ skill, agent, path: skillPath, location: 'project' });
+            const manifest = readManifest(skillPath);
+            const isManifestControlled = manifest?.source === 'manifest';
+            skills.push({
+              skill,
+              agent,
+              path: skillPath,
+              location: 'project',
+              isManifestControlled,
+            });
           }
         }
       }
 
       return skills;
+    }
+
+    // Helper to warn about manifest-controlled skills
+    function warnAboutManifestSkills(skills: SkillToRemove[]): void {
+      const manifestSkills = skills.filter((s) => s.isManifestControlled);
+      if (manifestSkills.length > 0 && !jsonMode) {
+        console.log();
+        p.log.warn(
+          pc.yellow(
+            `${manifestSkills.length} skill${manifestSkills.length === 1 ? ' is' : 's are'} managed by skillfish.json:`,
+          ),
+        );
+        for (const item of manifestSkills) {
+          console.log(`  ${pc.yellow('•')} ${item.skill}`);
+        }
+        p.log.info(
+          pc.dim(
+            `These will be reinstalled on next ${pc.cyan('skillfish install')}. ` +
+              `To permanently remove, also edit skillfish.json.`,
+          ),
+        );
+      }
     }
 
     // Interactive mode: no skill name and no --all flag
@@ -354,6 +411,9 @@ Examples:
         console.log(`  ${pc.red('•')} ${item.skill}`);
       }
 
+      // Warn about manifest-controlled skills before confirmation
+      warnAboutManifestSkills(selectedSkills);
+
       const confirm = await p.confirm({
         message: `Remove ${selectedSkills.length} skill${selectedSkills.length === 1 ? '' : 's'}?`,
         initialValue: false,
@@ -414,6 +474,9 @@ Examples:
         );
       }
       console.log();
+
+      // Warn about manifest-controlled skills before confirmation
+      warnAboutManifestSkills(skillsToRemove);
 
       const proceed = await p.confirm({
         message: `Remove ${skillsToRemove.length} skill${skillsToRemove.length === 1 ? '' : 's'}?`,

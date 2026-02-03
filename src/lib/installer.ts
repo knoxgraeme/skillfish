@@ -10,7 +10,12 @@ import { randomUUID } from 'crypto';
 import { downloadTemplate } from 'giget';
 import type { Agent } from './agents.js';
 import { SKILL_FILENAME } from './github.js';
-import { writeManifest, type SkillManifest, MANIFEST_VERSION } from './manifest.js';
+import {
+  writeManifest,
+  type SkillManifest,
+  type SkillSource,
+  MANIFEST_VERSION,
+} from './manifest.js';
 
 // === Types ===
 
@@ -29,6 +34,10 @@ export interface InstallOptions {
   branch?: string;
   /** Tree SHA for manifest tracking. If provided, .skillfish.json will be written. */
   sha?: string;
+  /** User's pinned ref (e.g., "v1.0.0", "main") - preserves original request */
+  ref?: string;
+  /** How the skill was installed - defaults to 'manual' */
+  source?: SkillSource;
 }
 
 /**
@@ -140,7 +149,7 @@ export async function installSkill(
     failed: false,
   };
 
-  const { force, baseDir, branch, sha } = options;
+  const { force, baseDir, branch, sha, ref, source } = options;
 
   const tmpDir = join(homedir(), '.cache', 'skillfish', `${owner}-${repo}-${randomUUID()}`);
   mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
@@ -149,7 +158,7 @@ export async function installSkill(
     // Download skill using giget (tarball-based, works reliably on all repo sizes)
     // Build giget source: github:owner/repo[/subpath][#branch]
     const downloadPath = skillPath === SKILL_FILENAME ? '' : skillPath;
-    let source = downloadPath
+    let gigetSource = downloadPath
       ? `github:${owner}/${repo}/${downloadPath}`
       : `github:${owner}/${repo}`;
 
@@ -159,10 +168,10 @@ export async function installSkill(
       if (!isValidBranchName(branch)) {
         throw new Error(`Invalid branch name: ${branch}`);
       }
-      source = `${source}#${branch}`;
+      gigetSource = `${gigetSource}#${branch}`;
     }
 
-    await downloadTemplate(source, {
+    await downloadTemplate(gigetSource, {
       dir: tmpDir,
       forceClean: true,
     });
@@ -231,11 +240,14 @@ export async function installSkill(
           try {
             const manifest: SkillManifest = {
               version: MANIFEST_VERSION,
+              name: skillName,
               owner,
               repo,
               path: skillPath === SKILL_FILENAME ? '.' : skillPath,
               branch,
               sha,
+              ref: ref,
+              source: source as SkillSource | undefined,
             };
             writeManifest(destDir, manifest);
           } catch (manifestErr) {

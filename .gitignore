@@ -43,7 +43,9 @@ coverage/
 .gemini/
 .goose/
 .cline/
+.opencode/
 .mcp.json
+skillfish.json
 
 # Development tracking
 plans/
@@ -53,3 +55,4 @@ docs/solutions
 
 # Supabase CLI cache
 supabase/
+skillfish.json

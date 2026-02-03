@@ -331,6 +331,7 @@ Examples:
           baseDir,
           branch: discoveredBranch,
           sha: skillSha,
+          source: 'manual',
         });
 
         if (spinner) {
