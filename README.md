@@ -29,6 +29,9 @@ npm i -g skillfish
 
 One command installs to **all detected agents** on your system.
 
+> [!TIP]
+> **New:** [Sync skills across your team](#team-skill-sync) with `skillfish bundle`.
+
 ## What Are Agent Skills?
 
 Agent Skills are portable packages of instructions, prompts, scripts, and resources that AI coding agents can discover and use. They give agents like Claude Code, Cursor, and Copilot domain expertise, reusable workflows, and team-specific context - loaded on demand to extend capabilities.
@@ -121,9 +124,9 @@ Skills can be pinned to a specific ref (tag, branch, or commit) using `@ref` syn
 
 ## Supported Agents
 
-Works with 17+ agents including:
+Works with 32 agents including:
 
-**Claude Code** · **Cursor** · **Windsurf** · **Codex** · **GitHub Copilot** · **Gemini CLI** · **OpenCode** · **Goose** · **Amp** · **Roo Code** · **Kiro CLI** · **Kilo Code** · **Trae** · **Cline** · **Antigravity** · **Droid** · **Clawdbot**
+**Claude Code** · **Cursor** · **Windsurf** · **Codex** · **GitHub Copilot** · **Gemini CLI** · **OpenCode** · **Goose** · **Amp** · **Roo Code** · **Kiro CLI** · **Kilo Code** · **Trae** · **Cline** · **Antigravity** · **Droid** · **Augment** · **OpenClaw** · **CodeBuddy** · **Command Code** · **Crush** · **Kode** · **Mistral Vibe** · **Mux** · **OpenClaude IDE** · **OpenHands** · **Qoder** · **Qwen Code** · **Replit** · **Trae CN** · **Neovate** · **AdaL**
 
 <details>
 <summary>All supported agents</summary>
@@ -146,7 +149,22 @@ Works with 17+ agents including:
 | Cline | `~/.cline/skills/` |
 | Antigravity | `~/.gemini/antigravity/skills/` |
 | Droid | `~/.factory/skills/` |
-| Clawdbot | `~/.clawdbot/skills/` |
+| Augment | `~/.augment/rules/` |
+| OpenClaw | `~/.moltbot/skills/` |
+| CodeBuddy | `~/.codebuddy/skills/` |
+| Command Code | `~/.commandcode/skills/` |
+| Crush | `~/.config/crush/skills/` |
+| Kode | `~/.kode/skills/` |
+| Mistral Vibe | `~/.vibe/skills/` |
+| Mux | `~/.mux/skills/` |
+| OpenClaude IDE | `~/.openclaude/skills/` |
+| OpenHands | `~/.openhands/skills/` |
+| Qoder | `~/.qoder/skills/` |
+| Qwen Code | `~/.qwen/skills/` |
+| Replit | `.agent/skills/` (project-only) |
+| Trae CN | `~/.trae-cn/skills/` |
+| Neovate | `~/.neovate/skills/` |
+| AdaL | `~/.adal/skills/` |
 
 </details>
 
