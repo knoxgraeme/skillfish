@@ -3,9 +3,9 @@
  * Reads/writes .skillfish.json at project or global level.
  */
 
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'fs';
 import { homedir } from 'os';
-import { join } from 'path';
+import { join, dirname, basename } from 'path';
 import { isValidName } from './constants.js';
 import { isValidPath } from '../utils.js';
 
@@ -101,14 +101,31 @@ export function readProjectManifest(manifestPath: string): ProjectManifest | nul
 }
 
 /**
- * Write a project manifest file.
+ * Write a project manifest file atomically.
+ * Uses temp file + rename pattern to prevent partial writes from being visible.
  *
  * @param manifestPath - Path to write the manifest
  * @param manifest - Manifest data to write
  */
 export function writeProjectManifest(manifestPath: string, manifest: ProjectManifest): void {
+  const dir = dirname(manifestPath);
+  const tempPath = join(dir, `.${basename(manifestPath)}.tmp.${process.pid}`);
   const content = JSON.stringify(manifest, null, 2);
-  writeFileSync(manifestPath, content, 'utf-8');
+
+  try {
+    // Write to temp file first
+    writeFileSync(tempPath, content, 'utf-8');
+    // Atomic rename (on POSIX systems)
+    renameSync(tempPath, manifestPath);
+  } catch (err) {
+    // Clean up temp file on failure
+    try {
+      unlinkSync(tempPath);
+    } catch {
+      // Ignore cleanup errors
+    }
+    throw err;
+  }
 }
 
 /**

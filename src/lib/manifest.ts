@@ -3,7 +3,7 @@
  * Each installed skill has a .skillfish.json file that tracks its origin.
  */
 
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { isValidName } from './constants.js';
 import { isValidPath } from '../utils.js';
@@ -82,15 +82,31 @@ export function readManifest(skillDir: string): SkillManifest | null {
 }
 
 /**
- * Write manifest to a skill directory.
+ * Write manifest to a skill directory atomically.
+ * Uses temp file + rename pattern to prevent partial writes from being visible.
  *
  * @param skillDir - Path to the skill directory
  * @param manifest - Manifest data to write
  */
 export function writeManifest(skillDir: string, manifest: SkillManifest): void {
   const manifestPath = join(skillDir, MANIFEST_FILENAME);
+  const tempPath = join(skillDir, `.${MANIFEST_FILENAME}.tmp.${process.pid}`);
   const content = JSON.stringify(manifest, null, 2);
-  writeFileSync(manifestPath, content, 'utf-8');
+
+  try {
+    // Write to temp file first
+    writeFileSync(tempPath, content, 'utf-8');
+    // Atomic rename (on POSIX systems)
+    renameSync(tempPath, manifestPath);
+  } catch (err) {
+    // Clean up temp file on failure
+    try {
+      unlinkSync(tempPath);
+    } catch {
+      // Ignore cleanup errors
+    }
+    throw err;
+  }
 }
 
 /**
