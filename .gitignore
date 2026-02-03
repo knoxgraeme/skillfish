@@ -43,6 +43,7 @@ coverage/
 .gemini/
 .goose/
 .cline/
+.opencode/
 .mcp.json
 
 # Development tracking

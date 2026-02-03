@@ -3,7 +3,7 @@
  */
 
 import { Command } from 'commander';
-import { existsSync, rmSync } from 'fs';
+import { existsSync, rmSync, lstatSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import * as p from '@clack/prompts';
@@ -681,7 +681,9 @@ Examples:
 
     // Stop the installation spinner
     if (installSpinner) {
-      installSpinner.stop(`Installed ${totalCount} skill${totalCount === 1 ? '' : 's'}`);
+      installSpinner.stop(
+        `Installed ${pc.cyan(totalCount.toString())} skill${totalCount === 1 ? '' : 's'}`,
+      );
     }
 
     // Process results and update counts (count skills, not installations)
@@ -746,7 +748,13 @@ Examples:
       let skillRemoved = false;
       for (const installation of skill.installations) {
         try {
-          rmSync(installation.path, { recursive: true, force: true });
+          // Security: check if path is a symlink before recursive delete
+          const stat = lstatSync(installation.path);
+          if (stat.isSymbolicLink()) {
+            rmSync(installation.path);
+          } else {
+            rmSync(installation.path, { recursive: true, force: true });
+          }
           jsonOutput.removed.push({ skill: skill.name, agent: installation.agent.name });
           skillRemoved = true;
         } catch (err) {
@@ -898,19 +906,19 @@ async function selectInstallLocation(
     return { location: 'global', baseDir: homedir(), manifestPath: globalManifestPath };
   }
 
-  // Both exist - let user choose
+  // Both exist - let user choose (Global first to match `add` command)
   const locationChoice = await p.select({
     message: 'Install location',
     options: [
       {
-        value: 'project' as const,
-        label: 'Project',
-        hint: './.skillfish.json',
-      },
-      {
         value: 'global' as const,
         label: 'Global',
         hint: '~/.skillfish.json',
+      },
+      {
+        value: 'project' as const,
+        label: 'Project',
+        hint: './.skillfish.json',
       },
     ],
   });

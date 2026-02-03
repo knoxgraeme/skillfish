@@ -22,6 +22,9 @@ const BRANCH_PATTERN = /^[\w./-]+$/;
 /** Git ref pattern for tags, branches, or commit SHAs (more permissive than branch) */
 const REF_PATTERN = /^[\w./@-]+$/;
 
+/** Maximum length for ref strings */
+const MAX_REF_LENGTH = 255;
+
 // === Types ===
 
 /** How a skill was installed */
@@ -177,8 +180,12 @@ export function healManifest(skillDir: string): SkillManifest | null {
       sha: data.sha,
     };
 
+    // Validate and preserve ref if valid
     if (typeof data.ref === 'string') {
-      healed.ref = data.ref;
+      if (REF_PATTERN.test(data.ref) && data.ref.length <= MAX_REF_LENGTH) {
+        healed.ref = data.ref;
+      }
+      // Invalid refs are silently dropped during healing
     }
     if (source) {
       healed.source = source;

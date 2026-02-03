@@ -21,7 +21,7 @@ import {
 } from '../lib/github.js';
 import type { GitTreeItem } from '../utils.js';
 import { EXIT_CODES, type ExitCode } from '../lib/constants.js';
-import { isInputTTY, isTTY, type UpdateJsonOutput } from '../utils.js';
+import { isInputTTY, isTTY, batchMap, type UpdateJsonOutput } from '../utils.js';
 
 // === Types ===
 
@@ -253,53 +253,98 @@ Examples:
       }
     }
 
-    // Apply updates
+    // Apply updates in parallel with bounded concurrency
+    const UPDATE_CONCURRENCY = 5;
+
+    interface UpdateResult {
+      skill: (typeof outdated)[0];
+      success: boolean;
+      errorMsg?: string;
+    }
+
+    // Track progress for spinner updates
+    let completedCount = 0;
+    const totalCount = outdated.length;
+
+    // Start spinner for update progress
+    let updateSpinner: ReturnType<typeof p.spinner> | null = null;
+    if (!jsonMode && totalCount > 0) {
+      updateSpinner = p.spinner();
+      updateSpinner.start(`Updating skills... (0/${totalCount})`);
+    }
+
+    const updateResults = await batchMap(
+      outdated,
+      async (skill): Promise<UpdateResult> => {
+        try {
+          const result = await installSkill(
+            skill.manifest.owner,
+            skill.manifest.repo,
+            skill.manifest.path,
+            skill.skill,
+            [skill.agent],
+            {
+              force: true,
+              baseDir: skill.location === 'global' ? homedir() : process.cwd(),
+              branch: skill.manifest.branch,
+              sha: skill.remoteSha,
+              ref: skill.manifest.ref,
+              source: skill.manifest.source ?? 'manual',
+            },
+          );
+
+          // Update progress spinner
+          completedCount++;
+          if (updateSpinner) {
+            updateSpinner.message(`Updating skills... (${completedCount}/${totalCount})`);
+          }
+
+          if (result.failed) {
+            return { skill, success: false, errorMsg: result.failureReason };
+          }
+
+          return { skill, success: true };
+        } catch (err) {
+          // Update progress spinner even on error
+          completedCount++;
+          if (updateSpinner) {
+            updateSpinner.message(`Updating skills... (${completedCount}/${totalCount})`);
+          }
+
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          return { skill, success: false, errorMsg };
+        }
+      },
+      UPDATE_CONCURRENCY,
+    );
+
+    // Stop the update spinner
+    if (updateSpinner) {
+      updateSpinner.stop(`Updated ${totalCount} skill${totalCount === 1 ? '' : 's'}`);
+    }
+
+    // Process results
     let updatedCount = 0;
     let failedCount = 0;
 
-    for (let i = 0; i < outdated.length; i++) {
-      const skill = outdated[i];
-      const progress = `[${i + 1}/${outdated.length}]`;
-
-      let updateSpinner: ReturnType<typeof p.spinner> | null = null;
-      if (!jsonMode) {
-        updateSpinner = p.spinner();
-        updateSpinner.start(`${progress} Updating ${skill.skill}...`);
-      }
-
-      const result = await installSkill(
-        skill.manifest.owner,
-        skill.manifest.repo,
-        skill.manifest.path,
-        skill.skill,
-        [skill.agent],
-        {
-          force: true,
-          baseDir: skill.location === 'global' ? homedir() : process.cwd(),
-          branch: skill.manifest.branch,
-          sha: skill.remoteSha,
-          ref: skill.manifest.ref,
-          source: skill.manifest.source ?? 'manual',
-        },
-      );
-
-      if (result.failed) {
-        failedCount++;
-        if (updateSpinner) {
-          updateSpinner.stop(pc.red(`${progress} ${skill.skill} failed`));
-        }
-        addError(`Failed to update ${skill.skill}: ${result.failureReason}`);
-      } else {
+    for (const result of updateResults) {
+      if (result.success) {
         updatedCount++;
-        if (updateSpinner) {
-          updateSpinner.stop(pc.green(`${progress} ${skill.skill} updated`));
-        }
         jsonOutput.updated.push({
-          skill: skill.skill,
-          agent: skill.agent.name,
-          path: skill.path,
-          location: skill.location,
+          skill: result.skill.skill,
+          agent: result.skill.agent.name,
+          path: result.skill.path,
+          location: result.skill.location,
         });
+        if (!jsonMode) {
+          console.log(`  ${pc.green('✓')} ${result.skill.skill} updated`);
+        }
+      } else {
+        failedCount++;
+        addError(`Failed to update ${result.skill.skill}: ${result.errorMsg}`);
+        if (!jsonMode) {
+          console.log(`  ${pc.red('✗')} ${result.skill.skill} failed: ${result.errorMsg}`);
+        }
       }
     }
 

@@ -255,15 +255,25 @@ export function parseSkillEntry(entry: string): ParseResult {
  *
  * @param entry - Parsed skill entry
  * @returns Directory name for the skill
+ * @throws Error if derived name is invalid
  */
 export function deriveSkillDirName(entry: ParsedSkillEntry): string {
+  let name: string;
   if (entry.path) {
     // Use the last component of the path
     const parts = entry.path.split('/');
-    return parts[parts.length - 1];
+    name = parts[parts.length - 1];
+  } else {
+    // Use repo name for root-level skills
+    name = entry.repo;
   }
-  // Use repo name for root-level skills
-  return entry.repo;
+
+  // Validate derived name to prevent hidden directories or invalid names
+  if (!isValidName(name)) {
+    throw new Error(`Invalid skill name derived from entry: ${name}`);
+  }
+
+  return name;
 }
 
 /**

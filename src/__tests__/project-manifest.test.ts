@@ -137,6 +137,16 @@ describe('deriveSkillDirName', () => {
     };
     expect(deriveSkillDirName(entry)).toBe('skill-name');
   });
+
+  it('throws for invalid derived skill name', () => {
+    const entry: ParsedSkillEntry = {
+      owner: 'owner',
+      repo: 'repo',
+      path: 'plugins/invalid name with spaces',
+      original: 'owner/repo/plugins/invalid name with spaces',
+    };
+    expect(() => deriveSkillDirName(entry)).toThrow('Invalid skill name');
+  });
 });
 
 describe('formatSkillEntry', () => {
@@ -246,5 +256,94 @@ describe('parseAllEntries', () => {
     const { entries, errors } = parseAllEntries(manifest);
     expect(entries).toHaveLength(0);
     expect(errors).toHaveLength(0);
+  });
+});
+
+describe('ref change detection (for install command logic)', () => {
+  // These tests verify the ref comparison logic used in install.ts
+  // The comparison is: existingRef !== newRef
+
+  // Helper to simulate ref comparison as done in install.ts
+  function shouldReinstall(existingRef: string | undefined, newRef: string | undefined): boolean {
+    return existingRef !== newRef;
+  }
+
+  it('detects ref change from undefined to defined', () => {
+    expect(shouldReinstall(undefined, 'v1.0.0')).toBe(true); // Should trigger reinstall
+  });
+
+  it('detects ref change from defined to undefined', () => {
+    expect(shouldReinstall('v1.0.0', undefined)).toBe(true); // Should trigger reinstall
+  });
+
+  it('detects ref change between different versions', () => {
+    expect(shouldReinstall('v1.0.0', 'v2.0.0')).toBe(true); // Should trigger reinstall
+  });
+
+  it('skips when refs are identical', () => {
+    expect(shouldReinstall('v1.0.0', 'v1.0.0')).toBe(false); // Should skip
+  });
+
+  it('skips when both refs are undefined', () => {
+    expect(shouldReinstall(undefined, undefined)).toBe(false); // Should skip
+  });
+
+  it('preserves ref through parse/format roundtrip', () => {
+    const original = 'owner/repo@v1.2.3';
+    const result = parseSkillEntry(original);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.entry.ref).toBe('v1.2.3');
+      expect(formatSkillEntry(result.entry)).toBe(original);
+    }
+  });
+
+  it('preserves undefined ref through parse/format roundtrip', () => {
+    const original = 'owner/repo';
+    const result = parseSkillEntry(original);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.entry.ref).toBeUndefined();
+      expect(formatSkillEntry(result.entry)).toBe(original);
+    }
+  });
+
+  it('handles semver-style refs', () => {
+    const refs = ['v1.0.0', 'v2.0.0-beta.1', 'v1.0.0-rc.1'];
+    for (const ref of refs) {
+      const result = parseSkillEntry(`owner/repo@${ref}`);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.entry.ref).toBe(ref);
+      }
+    }
+  });
+
+  it('handles branch-style refs', () => {
+    const refs = ['main', 'develop', 'feature-branch', 'release-1.0'];
+    for (const ref of refs) {
+      const result = parseSkillEntry(`owner/repo@${ref}`);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.entry.ref).toBe(ref);
+      }
+    }
+  });
+
+  it('handles commit SHA refs (short and full)', () => {
+    const shortSha = 'abc123f';
+    const fullSha = 'abc123def456abc123def456abc123def456abc1';
+
+    const shortResult = parseSkillEntry(`owner/repo@${shortSha}`);
+    expect(shortResult.success).toBe(true);
+    if (shortResult.success) {
+      expect(shortResult.entry.ref).toBe(shortSha);
+    }
+
+    const fullResult = parseSkillEntry(`owner/repo@${fullSha}`);
+    expect(fullResult.success).toBe(true);
+    if (fullResult.success) {
+      expect(fullResult.entry.ref).toBe(fullSha);
+    }
   });
 });

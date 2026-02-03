@@ -389,19 +389,19 @@ async function selectBundleLocation(
     return { baseDir: process.cwd(), location: 'project' };
   }
 
-  // Interactive selection
+  // Interactive selection (Global first to match `add` command)
   const locationChoice = await p.select({
     message: 'Bundle location',
     options: [
       {
-        value: 'project' as const,
-        label: 'Project',
-        hint: 'Create ./.skillfish.json',
-      },
-      {
         value: 'global' as const,
         label: 'Global',
         hint: 'Create ~/.skillfish.json',
+      },
+      {
+        value: 'project' as const,
+        label: 'Project',
+        hint: 'Create ./.skillfish.json',
       },
     ],
   });
