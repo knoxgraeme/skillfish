@@ -143,7 +143,7 @@ Examples:
         console.log();
         p.log.info(
           pc.dim(
-            `${manifestSkills.length} skill${manifestSkills.length === 1 ? '' : 's'} controlled by manifest - update ${pc.cyan('.skillfish.json')} and run ${pc.cyan('skillfish install')} instead.`,
+            `${manifestSkills.length} skill${manifestSkills.length === 1 ? '' : 's'} controlled by manifest - update ${pc.cyan('skillfish.json')} and run ${pc.cyan('skillfish install')} instead.`,
           ),
         );
       }
@@ -208,7 +208,7 @@ Examples:
         console.log();
         p.log.info(
           pc.dim(
-            `${manifestSkills.length} skill${manifestSkills.length === 1 ? '' : 's'} controlled by manifest - update ${pc.cyan('.skillfish.json')} and run ${pc.cyan('skillfish install')} instead.`,
+            `${manifestSkills.length} skill${manifestSkills.length === 1 ? '' : 's'} controlled by manifest - update ${pc.cyan('skillfish.json')} and run ${pc.cyan('skillfish install')} instead.`,
           ),
         );
       }

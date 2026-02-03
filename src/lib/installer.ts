@@ -240,6 +240,7 @@ export async function installSkill(
           try {
             const manifest: SkillManifest = {
               version: MANIFEST_VERSION,
+              name: skillName,
               owner,
               repo,
               path: skillPath === SKILL_FILENAME ? '.' : skillPath,

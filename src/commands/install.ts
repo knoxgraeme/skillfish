@@ -16,7 +16,12 @@ import {
   type DetectionLocation,
 } from '../lib/agents.js';
 import { installSkill, listInstalledSkillsInDir } from '../lib/installer.js';
-import { readManifest, type SkillManifest } from '../lib/manifest.js';
+import {
+  readManifest,
+  getManifestKey,
+  buildManifestKey,
+  type SkillManifest,
+} from '../lib/manifest.js';
 import {
   readProjectManifest,
   getProjectManifestPath,
@@ -62,6 +67,8 @@ interface SkillInstallation {
  */
 interface InstalledSkillInfo {
   name: string;
+  /** Canonical key (owner/repo/path) from manifest, or null if no manifest */
+  manifestKey: string | null;
   /** All installations of this skill across agents */
   installations: SkillInstallation[];
 }
@@ -77,9 +84,9 @@ type SkillAction =
 // === Command Definition ===
 
 export const installCommand = new Command('install')
-  .description('Install skills from a .skillfish.json manifest')
-  .option('--global', 'Install from ~/.skillfish.json to global location')
-  .option('--project', 'Install from ./.skillfish.json to project location')
+  .description('Install skills from a skillfish.json manifest')
+  .option('--global', 'Install from ~/skillfish.json to global location')
+  .option('--project', 'Install from ./skillfish.json to project location')
   .option('-y, --yes', 'Skip all confirmation prompts')
   .option('--dry-run', 'Show what would happen without making changes')
   .helpOption('-h, --help', 'Display help for command')
@@ -88,8 +95,8 @@ export const installCommand = new Command('install')
     `
 Examples:
   $ skillfish install              Install skills (interactive location selection)
-  $ skillfish install --project    Install skills from ./.skillfish.json
-  $ skillfish install --global     Install skills from ~/.skillfish.json
+  $ skillfish install --project    Install skills from ./skillfish.json
+  $ skillfish install --global     Install skills from ~/skillfish.json
   $ skillfish install --dry-run    Preview changes without installing
   $ skillfish install --yes        Skip confirmation prompts`,
   )
@@ -170,7 +177,7 @@ Examples:
     const manifest = readProjectManifest(manifestPath);
 
     if (!manifest) {
-      const displayPath = globalFlag ? '~/.skillfish.json' : '.skillfish.json';
+      const displayPath = globalFlag ? '~/skillfish.json' : 'skillfish.json';
       if (!existsSync(manifestPath)) {
         exitWithError(
           `No manifest found at ${displayPath}. Run ${pc.cyan('skillfish bundle')} to generate one from installed skills.`,
@@ -343,6 +350,7 @@ Examples:
 
     for (const entry of entries) {
       const skillName = deriveSkillDirName(entry);
+      const entryKey = buildManifestKey(entry.owner, entry.repo, entry.path);
       const existing = installedSkills.find((s) => s.name === skillName);
 
       if (!existing) {
@@ -362,7 +370,19 @@ Examples:
           continue;
         }
 
-        // Compare refs
+        // Check if source changed (different owner/repo/path, same directory name)
+        if (existing.manifestKey !== entryKey) {
+          // Source changed - reinstall from new source
+          actions.push({
+            type: 'reinstall',
+            entry,
+            reason: `Source changed: ${existing.manifestKey} → ${entryKey}`,
+            targetAgents,
+          });
+          continue;
+        }
+
+        // Same source - compare refs
         const existingRef = firstInstall.manifest.ref;
         const newRef = entry.ref;
 
@@ -398,8 +418,8 @@ Examples:
     }
 
     // Find skills to remove (source='manifest' but no longer in manifest)
-    // We check the first installation's manifest as representative
-    const manifestSkillNames = new Set(entries.map((e) => deriveSkillDirName(e)));
+    // Match by manifest key (owner/repo/path) for robust identification
+    const manifestKeys = new Set(entries.map((e) => buildManifestKey(e.owner, e.repo, e.path)));
     const toRemove: InstalledSkillInfo[] = [];
 
     for (const skill of installedSkills) {
@@ -407,7 +427,8 @@ Examples:
       const firstInstall = skill.installations[0];
       if (!firstInstall.manifest) continue;
       const source = firstInstall.manifest.source ?? 'manual';
-      if (source === 'manifest' && !manifestSkillNames.has(skill.name)) {
+      // Use manifest key for matching instead of directory name
+      if (source === 'manifest' && skill.manifestKey && !manifestKeys.has(skill.manifestKey)) {
         toRemove.push(skill);
       }
     }
@@ -724,10 +745,12 @@ Examples:
       const currentManifest = readProjectManifest(manifestPath);
       if (currentManifest) {
         const { entries: currentEntries } = parseAllEntries(currentManifest);
-        const currentSkillNames = new Set(currentEntries.map((e) => deriveSkillDirName(e)));
+        const currentKeys = new Set(
+          currentEntries.map((e) => buildManifestKey(e.owner, e.repo, e.path)),
+        );
 
-        // Skip removal if skill was added back to manifest
-        if (currentSkillNames.has(skill.name)) {
+        // Skip removal if skill was added back to manifest (match by key)
+        if (skill.manifestKey && currentKeys.has(skill.manifestKey)) {
           if (!jsonMode) {
             console.log(
               `  ${pc.yellow('○')} ${skill.name} ${pc.dim('kept (added back to manifest)')}`,
@@ -834,9 +857,11 @@ function scanInstalledSkills(agents: readonly Agent[], baseDir: string): Install
         // Add this agent's installation to existing skill record
         existing.installations.push(installation);
       } else {
-        // Create new skill record
+        // Create new skill record with manifest key for matching
+        const manifestKey = manifest ? getManifestKey(manifest) : null;
         skillMap.set(skillName, {
           name: skillName,
+          manifestKey,
           installations: [installation],
         });
       }
@@ -871,13 +896,13 @@ async function selectInstallLocation(
   // If flag specified, use it (error handling happens later if manifest missing)
   if (projectFlag) {
     if (!jsonMode) {
-      p.log.info(`Location: ${pc.cyan('Project')} ${pc.dim('(.skillfish.json)')}`);
+      p.log.info(`Location: ${pc.cyan('Project')} ${pc.dim('(skillfish.json)')}`);
     }
     return { location: 'project', baseDir: process.cwd(), manifestPath: projectManifestPath };
   }
   if (globalFlag) {
     if (!jsonMode) {
-      p.log.info(`Location: ${pc.cyan('Global')} ${pc.dim('(~/.skillfish.json)')}`);
+      p.log.info(`Location: ${pc.cyan('Global')} ${pc.dim('(~/skillfish.json)')}`);
     }
     return { location: 'global', baseDir: homedir(), manifestPath: globalManifestPath };
   }
@@ -898,11 +923,11 @@ async function selectInstallLocation(
 
   // If only one exists, use it automatically
   if (hasProjectManifest && !hasGlobalManifest) {
-    p.log.info(`Location: ${pc.cyan('Project')} ${pc.dim('(.skillfish.json)')}`);
+    p.log.info(`Location: ${pc.cyan('Project')} ${pc.dim('(skillfish.json)')}`);
     return { location: 'project', baseDir: process.cwd(), manifestPath: projectManifestPath };
   }
   if (hasGlobalManifest && !hasProjectManifest) {
-    p.log.info(`Location: ${pc.cyan('Global')} ${pc.dim('(~/.skillfish.json)')}`);
+    p.log.info(`Location: ${pc.cyan('Global')} ${pc.dim('(~/skillfish.json)')}`);
     return { location: 'global', baseDir: homedir(), manifestPath: globalManifestPath };
   }
 
@@ -913,12 +938,12 @@ async function selectInstallLocation(
       {
         value: 'global' as const,
         label: 'Global',
-        hint: '~/.skillfish.json',
+        hint: '~/skillfish.json',
       },
       {
         value: 'project' as const,
         label: 'Project',
-        hint: './.skillfish.json',
+        hint: './skillfish.json',
       },
     ],
   });

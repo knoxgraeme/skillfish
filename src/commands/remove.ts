@@ -36,7 +36,7 @@ interface SkillToRemove {
   agent: Agent;
   path: string;
   location: 'global' | 'project';
-  /** Whether this skill is managed by a .skillfish.json manifest */
+  /** Whether this skill is managed by a skillfish.json manifest */
   isManifestControlled: boolean;
 }
 
@@ -290,7 +290,7 @@ Examples:
         console.log();
         p.log.warn(
           pc.yellow(
-            `${manifestSkills.length} skill${manifestSkills.length === 1 ? ' is' : 's are'} managed by .skillfish.json:`,
+            `${manifestSkills.length} skill${manifestSkills.length === 1 ? ' is' : 's are'} managed by skillfish.json:`,
           ),
         );
         for (const item of manifestSkills) {
@@ -299,7 +299,7 @@ Examples:
         p.log.info(
           pc.dim(
             `These will be reinstalled on next ${pc.cyan('skillfish install')}. ` +
-              `To permanently remove, also edit .skillfish.json.`,
+              `To permanently remove, also edit skillfish.json.`,
           ),
         );
       }

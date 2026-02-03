@@ -15,6 +15,7 @@ import {
   hasManifest,
   healManifest,
   writeManifest,
+  MANIFEST_VERSION,
   type SkillManifest,
 } from '../lib/manifest.js';
 import {
@@ -53,16 +54,16 @@ interface DiscoveredSkill {
 // === Command Definition ===
 
 export const bundleCommand = new Command('bundle')
-  .description('Bundle installed skills into a .skillfish.json manifest')
-  .option('--global', 'Bundle global skills to ~/.skillfish.json')
-  .option('--project', 'Bundle project skills to ./.skillfish.json')
+  .description('Bundle installed skills into a skillfish.json manifest')
+  .option('--global', 'Bundle global skills to ~/skillfish.json')
+  .option('--project', 'Bundle project skills to ./skillfish.json')
   .helpOption('-h, --help', 'Display help for command')
   .addHelpText(
     'after',
     `
 Examples:
-  $ skillfish bundle              Bundle project skills to ./.skillfish.json
-  $ skillfish bundle --global     Bundle global skills to ~/.skillfish.json
+  $ skillfish bundle              Bundle project skills to ./skillfish.json
+  $ skillfish bundle --global     Bundle global skills to ~/skillfish.json
   $ skillfish bundle --json       Output bundled skills as JSON`,
   )
   .action(async (options: BundleCommandOptions, command: Command) => {
@@ -240,11 +241,14 @@ Examples:
     }
 
     // Update per-skill manifests to mark them as manifest-managed
+    // Also upgrade to v2 with name field if missing
     // This prevents "manual install conflict" errors when running `skillfish install`
     for (const skill of discoveredSkills) {
-      if (skill.manifest && skill.manifest.source !== 'manifest') {
+      if (skill.manifest && (skill.manifest.source !== 'manifest' || !skill.manifest.name)) {
         const updatedManifest: SkillManifest = {
           ...skill.manifest,
+          version: MANIFEST_VERSION,
+          name: skill.name,
           source: 'manifest',
         };
         try {
@@ -267,10 +271,10 @@ Examples:
     }
 
     console.log();
-    p.log.success(`Created ${pc.cyan(globalFlag ? '~/.skillfish.json' : '.skillfish.json')}`);
+    p.log.success(`Created ${pc.cyan(globalFlag ? '~/skillfish.json' : 'skillfish.json')}`);
 
     if (globalFlag) {
-      p.log.info(pc.dim('Tip: Add ~/.skillfish.json to your dotfiles for cross-machine sync.'));
+      p.log.info(pc.dim('Tip: Add ~/skillfish.json to your dotfiles for cross-machine sync.'));
     } else {
       p.log.info(
         pc.dim(`Commit this file and run ${pc.cyan('skillfish install')} to sync with your team.`),
@@ -373,13 +377,13 @@ async function selectBundleLocation(
   // If flag specified, use it
   if (projectFlag) {
     if (!jsonMode) {
-      p.log.info(`Location: ${pc.cyan('Project')} ${pc.dim('(.skillfish.json)')}`);
+      p.log.info(`Location: ${pc.cyan('Project')} ${pc.dim('(skillfish.json)')}`);
     }
     return { baseDir: process.cwd(), location: 'project' };
   }
   if (globalFlag) {
     if (!jsonMode) {
-      p.log.info(`Location: ${pc.cyan('Global')} ${pc.dim('(~/.skillfish.json)')}`);
+      p.log.info(`Location: ${pc.cyan('Global')} ${pc.dim('(~/skillfish.json)')}`);
     }
     return { baseDir: homedir(), location: 'global' };
   }
@@ -396,12 +400,12 @@ async function selectBundleLocation(
       {
         value: 'global' as const,
         label: 'Global',
-        hint: 'Create ~/.skillfish.json',
+        hint: 'Create ~/skillfish.json',
       },
       {
         value: 'project' as const,
         label: 'Project',
-        hint: 'Create ./.skillfish.json',
+        hint: 'Create ./skillfish.json',
       },
     ],
   });

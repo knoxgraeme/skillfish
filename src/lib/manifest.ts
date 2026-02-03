@@ -4,14 +4,17 @@
  */
 
 import { existsSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'fs';
-import { join } from 'path';
+import { join, basename } from 'path';
 import { isValidName } from './constants.js';
 import { isValidPath } from '../utils.js';
 
 // === Constants ===
 
 export const MANIFEST_FILENAME = '.skillfish.json';
-export const MANIFEST_VERSION = 1;
+export const MANIFEST_VERSION = 2;
+
+/** Supported manifest versions for reading (we write latest only) */
+const SUPPORTED_VERSIONS = [1, 2] as const;
 
 /** Git SHA format: 40 hexadecimal characters */
 const SHA_PATTERN = /^[a-f0-9]{40}$/;
@@ -36,12 +39,14 @@ export type SkillSource = 'manifest' | 'manual';
  */
 export interface SkillManifest {
   /** Schema version for future migrations */
-  version: 1;
+  version: 1 | 2;
+  /** Installed directory name (added in v2, used for matching) */
+  name?: string;
   /** GitHub repository owner */
   owner: string;
   /** GitHub repository name */
   repo: string;
-  /** Path within repo (e.g., "skills/my-skill" or ".") */
+  /** Path within repo (e.g., "skills/my-skill" or ".") - used for downloads */
   path: string;
   /** Branch at install time */
   branch: string;
@@ -123,9 +128,34 @@ export function hasManifest(skillDir: string): boolean {
 }
 
 /**
+ * Build a canonical key for matching skills.
+ * Format: "owner/repo/path" where path is "." for root skills.
+ * This key uniquely identifies a skill's source location.
+ *
+ * @param manifest - Skill manifest
+ * @returns Canonical key string
+ */
+export function getManifestKey(manifest: SkillManifest): string {
+  return `${manifest.owner}/${manifest.repo}/${manifest.path}`;
+}
+
+/**
+ * Build a canonical key from parsed skill entry components.
+ * Format: "owner/repo/path" where path is "." for root skills.
+ *
+ * @param owner - GitHub repository owner
+ * @param repo - GitHub repository name
+ * @param path - Path within repo (or undefined for root)
+ * @returns Canonical key string
+ */
+export function buildManifestKey(owner: string, repo: string, path?: string): string {
+  return `${owner}/${repo}/${path ?? '.'}`;
+}
+
+/**
  * Attempt to heal an invalid manifest file.
  * Reads the file loosely, fixes known issues (like old source format),
- * rewrites it, and returns the healed manifest.
+ * upgrades v1 to v2 (adding name field), rewrites it, and returns the healed manifest.
  *
  * @param skillDir - Path to the skill directory
  * @returns Healed manifest or null if unrecoverable
@@ -141,9 +171,13 @@ export function healManifest(skillDir: string): SkillManifest | null {
     const content = readFileSync(manifestPath, 'utf-8');
     const data = JSON.parse(content) as Record<string, unknown>;
 
+    // Check version is supported (v1 or v2)
+    if (!SUPPORTED_VERSIONS.includes(data.version as 1 | 2)) {
+      return null;
+    }
+
     // Check if it has the basic required fields
     if (
-      data.version !== MANIFEST_VERSION ||
       typeof data.owner !== 'string' ||
       typeof data.repo !== 'string' ||
       typeof data.path !== 'string' ||
@@ -170,9 +204,14 @@ export function healManifest(skillDir: string): SkillManifest | null {
       source = 'manual';
     }
 
-    // Build the healed manifest
+    // Derive name from directory if not present (v1 to v2 migration)
+    const dirName = basename(skillDir);
+    const name = typeof data.name === 'string' && isValidName(data.name) ? data.name : dirName;
+
+    // Build the healed manifest (always upgrade to latest version)
     const healed: SkillManifest = {
       version: MANIFEST_VERSION,
+      name,
       owner: data.owner,
       repo: data.repo,
       path: data.path,
@@ -204,6 +243,7 @@ export function healManifest(skillDir: string): SkillManifest | null {
  * Type guard to validate manifest structure and content.
  * Validates both field types and content to prevent tampered manifests
  * from causing unintended API requests or file operations.
+ * Supports both v1 and v2 manifests for backwards compatibility.
  */
 function isValidManifest(data: unknown): data is SkillManifest {
   if (typeof data !== 'object' || data === null) {
@@ -212,9 +252,13 @@ function isValidManifest(data: unknown): data is SkillManifest {
 
   const obj = data as Record<string, unknown>;
 
+  // Check version is supported
+  if (!SUPPORTED_VERSIONS.includes(obj.version as 1 | 2)) {
+    return false;
+  }
+
   // Check required field types
   if (
-    obj.version !== MANIFEST_VERSION ||
     typeof obj.owner !== 'string' ||
     typeof obj.repo !== 'string' ||
     typeof obj.path !== 'string' ||
@@ -229,6 +273,10 @@ function isValidManifest(data: unknown): data is SkillManifest {
     return false;
   }
   if (obj.source !== undefined && obj.source !== 'manifest' && obj.source !== 'manual') {
+    return false;
+  }
+  // name is optional in v1, but if present must be valid
+  if (obj.name !== undefined && (typeof obj.name !== 'string' || !isValidName(obj.name))) {
     return false;
   }
 

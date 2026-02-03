@@ -71,20 +71,20 @@ skillfish search github              # Search for skills
 skillfish update                     # Update all skills
 skillfish remove old-skill           # Remove a skill
 skillfish submit owner/repo          # Submit your skills to skill.fish
-skillfish bundle                     # Create .skillfish.json from installed skills
+skillfish bundle                     # Create skillfish.json from installed skills
 skillfish install                    # Sync skills from manifest
 skillfish install --dry-run          # Preview what would change
 ```
 
 ## Team Skill Sync
 
-Share skills across your team by committing a `.skillfish.json` manifest to your repository.
+Share skills across your team by committing a `skillfish.json` manifest to your repository.
 
 **Setup (one developer):**
 ```bash
 skillfish add owner/repo             # Install skills your team needs
-skillfish bundle                     # Create .skillfish.json manifest
-git add .skillfish.json && git commit -m "Add skill manifest"
+skillfish bundle                     # Create skillfish.json manifest
+git add skillfish.json && git commit -m "Add skill manifest"
 ```
 
 **Sync (other developers):**
@@ -96,7 +96,7 @@ The manifest tracks external skills only. Local skills (created with `skillfish 
 
 ### How It Works
 
-1. `skillfish bundle` scans your installed skills and creates `.skillfish.json`
+1. `skillfish bundle` scans your installed skills and creates `skillfish.json`
 2. `skillfish install` reads the manifest and syncs your local skills to match:
    - **Installs** skills listed in the manifest
    - **Updates** skills when the ref changes
@@ -234,11 +234,11 @@ skillfish update --json              # Check for updates (JSON output)
 
 ### bundle
 
-Create a `.skillfish.json` manifest from currently installed skills.
+Create a `skillfish.json` manifest from currently installed skills.
 
 ```bash
-skillfish bundle                     # Bundle project skills to ./.skillfish.json
-skillfish bundle --global            # Bundle global skills to ~/.skillfish.json
+skillfish bundle                     # Bundle project skills to ./skillfish.json
+skillfish bundle --global            # Bundle global skills to ~/skillfish.json
 skillfish bundle --json              # Output bundled skills as JSON
 ```
 
@@ -246,12 +246,12 @@ Local skills (created with `skillfish init`) are excluded from the manifest sinc
 
 ### install
 
-Install skills from a `.skillfish.json` manifest.
+Install skills from a `skillfish.json` manifest.
 
 ```bash
 skillfish install                    # Install from manifest (auto-detects location)
-skillfish install --project          # Install from ./.skillfish.json
-skillfish install --global           # Install from ~/.skillfish.json
+skillfish install --project          # Install from ./skillfish.json
+skillfish install --global           # Install from ~/skillfish.json
 skillfish install --dry-run          # Preview changes without installing
 skillfish install --yes              # Skip confirmation prompts
 ```
