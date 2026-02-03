@@ -13,7 +13,9 @@ import pc from 'picocolors';
 import updateNotifier from 'update-notifier';
 import { getBannerText } from './lib/banner.js';
 import { addCommand } from './commands/add.js';
+import { bundleCommand } from './commands/bundle.js';
 import { initCommand } from './commands/init.js';
+import { installCommand } from './commands/install.js';
 import { listCommand } from './commands/list.js';
 import { removeCommand } from './commands/remove.js';
 import { searchCommand } from './commands/search.js';
@@ -85,7 +87,9 @@ program.hook('preAction', (thisCommand) => {
 
 // Add subcommands
 program.addCommand(addCommand);
+program.addCommand(bundleCommand);
 program.addCommand(initCommand);
+program.addCommand(installCommand);
 program.addCommand(listCommand);
 program.addCommand(removeCommand);
 program.addCommand(searchCommand);
