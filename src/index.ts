@@ -17,10 +17,13 @@ import { bundleCommand } from './commands/bundle.js';
 import { initCommand } from './commands/init.js';
 import { installCommand } from './commands/install.js';
 import { listCommand } from './commands/list.js';
+import { loginCommand } from './commands/login.js';
+import { logoutCommand } from './commands/logout.js';
 import { removeCommand } from './commands/remove.js';
 import { searchCommand } from './commands/search.js';
 import { updateCommand } from './commands/update.js';
 import { submitCommand } from './commands/submit.js';
+import { whoamiCommand } from './commands/whoami.js';
 
 // Read version from package.json (single source of truth)
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -91,10 +94,13 @@ program.addCommand(bundleCommand);
 program.addCommand(initCommand);
 program.addCommand(installCommand);
 program.addCommand(listCommand);
+program.addCommand(loginCommand);
+program.addCommand(logoutCommand);
 program.addCommand(removeCommand);
 program.addCommand(searchCommand);
 program.addCommand(updateCommand);
 program.addCommand(submitCommand);
+program.addCommand(whoamiCommand);
 
 // Propagate help styling to all subcommands (must run after all addCommand() calls)
 for (const cmd of program.commands) {

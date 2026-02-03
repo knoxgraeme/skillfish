@@ -316,6 +316,30 @@ export interface InstallJsonOutput extends BaseJsonOutput {
   conflicts: { skill: string; reason: string }[];
 }
 
+/**
+ * JSON output for the `login` command.
+ */
+export interface LoginJsonOutput extends BaseJsonOutput {
+  user?: string;
+  email?: string;
+}
+
+/**
+ * JSON output for the `logout` command.
+ * Uses BaseJsonOutput directly (success, exit_code, errors).
+ */
+export type LogoutJsonOutput = BaseJsonOutput;
+
+/**
+ * JSON output for the `whoami` command.
+ */
+export interface WhoamiJsonOutput extends BaseJsonOutput {
+  logged_in: boolean;
+  user?: string;
+  email?: string;
+  token_source?: 'env' | 'file';
+}
+
 /** @deprecated Use AddJsonOutput instead */
 export type JsonOutput = AddJsonOutput;
 
