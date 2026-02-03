@@ -385,7 +385,7 @@ Examples:
 
         // Track successful installs (fire and forget)
         if (result.installed.length > 0) {
-          void trackInstall(owner, repo);
+          void trackInstall('add', owner, repo, skillName);
         }
       }
 

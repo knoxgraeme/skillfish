@@ -722,7 +722,7 @@ Examples:
       if (result.success) {
         successCount++;
         // Track successful installs (fire and forget)
-        void trackInstall(action.entry.owner, action.entry.repo);
+        void trackInstall('install', action.entry.owner, action.entry.repo, result.skillName);
         if (!jsonMode) {
           // Show which agents it was installed to if it's a partial install
           const agentCount = action.targetAgents.length;

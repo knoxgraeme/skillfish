@@ -42,14 +42,28 @@ export function trackCommand(command: string): Promise<void> {
 }
 
 /**
- * Track a skill install. Also increments skill download count on backend.
- * Maintains backward-compatible payload format.
+ * Track a skill install. Inserts into telemetry_events and increments skill download count.
  *
+ * @param command The command that triggered the install ('add' or 'install')
  * @param owner GitHub repository owner
  * @param repo GitHub repository name
+ * @param skillName Name of the skill being installed
  * @returns Promise that resolves when telemetry is sent (or times out)
  */
-export function trackInstall(owner: string, repo: string): Promise<void> {
-  if (!owner || !repo) return Promise.resolve();
-  return sendTelemetry({ owner, repo });
+export function trackInstall(
+  command: string,
+  owner: string,
+  repo: string,
+  skillName: string,
+): Promise<void> {
+  if (!command || !owner || !repo || !skillName) return Promise.resolve();
+  return sendTelemetry({
+    type: 'install',
+    command,
+    skillKey: `${owner}/${repo}`,
+    // Legacy fields for skill count increment
+    owner,
+    repo,
+    skillName,
+  });
 }
