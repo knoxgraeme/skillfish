@@ -38,7 +38,7 @@ function sendTelemetry(payload: Record<string, unknown>): Promise<void> {
  */
 export function trackCommand(command: string): Promise<void> {
   if (!command) return Promise.resolve();
-  return sendTelemetry({ type: 'command', command });
+  return sendTelemetry({ event_type: 'command', command });
 }
 
 /**
@@ -58,10 +58,10 @@ export function trackInstall(
 ): Promise<void> {
   if (!command || !owner || !repo || !skillName) return Promise.resolve();
   return sendTelemetry({
-    type: 'install',
+    event_type: 'install',
     command,
-    skillKey: `${owner}/${repo}`,
-    // Legacy fields for skill count increment
+    skill_key: `${owner}/${repo}`,
+    // Fields for skill count increment
     owner,
     repo,
     skillName,
