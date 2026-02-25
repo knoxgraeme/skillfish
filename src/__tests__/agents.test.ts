@@ -194,7 +194,7 @@ describe('agents.ts', () => {
 
     it('detects global agents with location=global', () => {
       mockExistsSync.mockImplementation((path: string) => {
-        return path === '/home/user/.claude/settings.json';
+        return path === '/home/user/.claude';
       });
 
       const detected = getDetectedAgentsForLocation('global');
@@ -216,9 +216,7 @@ describe('agents.ts', () => {
 
     it('detects both global and project with location=both', () => {
       mockExistsSync.mockImplementation((path: string) => {
-        return (
-          path === '/home/user/.claude/settings.json' || path === '/home/user/.cursor/extensions'
-        );
+        return path === '/home/user/.claude' || path === '/home/user/.cursor/extensions';
       });
 
       const detected = getDetectedAgentsForLocation('both');
