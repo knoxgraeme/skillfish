@@ -23,7 +23,7 @@ export const AGENT_CONFIGS: readonly AgentConfig[] = [
   {
     name: 'Claude Code',
     dir: '.claude/skills',
-    homePaths: ['.claude/settings.json', '.claude/projects.json', '.claude/credentials.json'],
+    homePaths: ['.claude'],
     cwdPaths: ['.claude'],
   },
   {
