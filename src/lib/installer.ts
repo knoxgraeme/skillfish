@@ -8,7 +8,7 @@ import { homedir } from 'os';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { downloadTemplate } from 'giget';
-import type { Agent } from './agents.js';
+import { getAgentSkillDir, type Agent } from './agents.js';
 import { SKILL_FILENAME } from './github.js';
 import {
   writeManifest,
@@ -184,7 +184,8 @@ export async function installSkill(
 
     // Copy to each agent directory
     for (const agent of agents) {
-      const destDir = join(baseDir, agent.dir, skillName);
+      const agentSkillDir = getAgentSkillDir(agent, baseDir);
+      const destDir = join(agentSkillDir, skillName);
 
       if (existsSync(destDir) && !force) {
         result.skipped.push({
@@ -196,7 +197,7 @@ export async function installSkill(
       }
 
       // Create parent directory
-      mkdirSync(join(baseDir, agent.dir), { recursive: true, mode: 0o700 });
+      mkdirSync(agentSkillDir, { recursive: true, mode: 0o700 });
 
       // Atomic install: backup existing directory before overwrite (allows rollback on failure)
       const backupDir = `${destDir}.skillfish-backup`;

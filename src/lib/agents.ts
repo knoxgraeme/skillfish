@@ -14,6 +14,7 @@ import { join } from 'path';
 export interface AgentConfig {
   readonly name: string;
   readonly dir: string;
+  readonly globalDir?: string; // Skill directory for global installs (~/), when different from dir
   readonly homePaths: readonly string[]; // Paths to check in ~/
   readonly cwdPaths: readonly string[]; // Paths to check in ./
 }
@@ -47,6 +48,7 @@ export const AGENT_CONFIGS: readonly AgentConfig[] = [
   {
     name: 'GitHub Copilot',
     dir: '.github/skills',
+    globalDir: '.copilot/skills',
     homePaths: ['.copilot/config.json', '.copilot'],
     cwdPaths: ['.github/skills', '.github/copilot-instructions.md'],
   },
@@ -246,6 +248,7 @@ export function detectAgent(config: AgentConfig, projectDir?: string): boolean {
 export interface Agent {
   readonly name: string;
   readonly dir: string;
+  readonly globalDir?: string;
   readonly detect: () => boolean;
 }
 
@@ -278,13 +281,16 @@ export function getDetectedAgentsForLocation(
   }).map((config) => ({
     name: config.name,
     dir: config.dir,
+    ...(config.globalDir && { globalDir: config.globalDir }),
     detect: () => detectAgent(config, cwd),
   }));
 }
 
 /**
  * Get the skill directory path for an agent.
+ * Uses globalDir (if defined) when baseDir is the home directory.
  */
 export function getAgentSkillDir(agent: Agent | AgentConfig, baseDir: string): string {
-  return join(baseDir, agent.dir);
+  const isGlobal = 'globalDir' in agent && agent.globalDir && baseDir === homedir();
+  return join(baseDir, isGlobal ? agent.globalDir : agent.dir);
 }
