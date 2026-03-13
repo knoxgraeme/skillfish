@@ -48,7 +48,6 @@ coverage/
 skillfish.json
 
 # Development tracking
-plans/
 todos/
 .context/
 docs/solutions
