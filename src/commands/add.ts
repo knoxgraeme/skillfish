@@ -323,9 +323,15 @@ Examples:
         }
 
         // Get directory-specific SHA for better update tracking
-        // skillPath is either 'SKILL.md' or a directory like 'skills/foo'
+        // skillPath is 'SKILL.md', a direct file like 'prompts/foo.md', or a directory 'skills/foo'
+        const isDirectFilePath =
+          (skillPath.endsWith('.md') || skillPath.endsWith('.mdx')) && skillPath !== SKILL_FILENAME;
         const skillMdPath =
-          skillPath === SKILL_FILENAME ? SKILL_FILENAME : `${skillPath}/${SKILL_FILENAME}`;
+          skillPath === SKILL_FILENAME
+            ? SKILL_FILENAME
+            : isDirectFilePath
+              ? skillPath
+              : `${skillPath}/${SKILL_FILENAME}`;
         const skillSha = getSkillSha(discoveredTree, skillMdPath) ?? discoveredSha;
 
         const result = await installSkill(owner, repo, skillPath, skillName, targetAgents, {
@@ -588,16 +594,27 @@ async function discoverSkillPaths(
   const skills = await batchMap(
     skillPaths,
     async (sp): Promise<SkillMetadata> => {
-      const skillDir = sp === SKILL_FILENAME ? '.' : dirname(sp);
-      const folderName = sp === SKILL_FILENAME ? repo : basename(skillDir);
+      // Direct .md/.mdx file (not a SKILL.md) — use filename as the identity
+      const isDirectFile = (sp.endsWith('.md') || sp.endsWith('.mdx')) && sp !== SKILL_FILENAME;
+
+      const folderName =
+        sp === SKILL_FILENAME
+          ? repo
+          : isDirectFile
+            ? basename(sp).replace(/\.mdx?$/, '')
+            : basename(dirname(sp));
 
       // Fetch raw content to parse frontmatter (use discovered branch)
       const content = await fetchSkillMdContent(owner, repo, sp, branch);
       const frontmatter = content ? parseFrontmatter(content) : {};
 
+      // dir is passed to installSkill as the skillPath:
+      // root SKILL.md → 'SKILL.md', direct file → full path, subdir skill → parent dir
+      const dir = sp === SKILL_FILENAME ? SKILL_FILENAME : isDirectFile ? sp : dirname(sp);
+
       return {
         path: sp,
-        dir: skillDir === '.' ? SKILL_FILENAME : skillDir,
+        dir,
         name: frontmatter.name || folderName,
         description: frontmatter.description || '',
       };

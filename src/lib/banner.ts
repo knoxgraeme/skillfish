@@ -6,24 +6,24 @@ import pc from 'picocolors';
 import { isTTY } from '../utils.js';
 
 export const LOGO_LINES = [
-  '   ███████╗██╗  ██╗██╗██╗     ██╗        ███████╗██╗███████╗██╗  ██╗',
-  '   ██╔════╝██║ ██╔╝██║██║     ██║        ██╔════╝██║██╔════╝██║  ██║',
-  '   ███████╗█████╔╝ ██║██║     ██║        █████╗  ██║███████╗███████║',
-  '   ╚════██║██╔═██╗ ██║██║     ██║        ██╔══╝  ██║╚════██║██╔══██║',
-  '   ███████║██║  ██╗██║███████╗███████╗██╗██║     ██║███████║██║  ██║',
-  '   ╚══════╝╚═╝  ╚═╝╚═╝╚══════╝╚══════╝╚═╝╚═╝     ╚═╝╚══════╝╚═╝  ╚═╝',
+  '   ███████╗███████╗██╗    ██╗   ███████╗██╗  ██╗██╗██╗     ██╗     ███████╗',
+  '   ██╔════╝██╔════╝██║    ██║   ██╔════╝██║ ██╔╝██║██║     ██║     ██╔════╝',
+  '   ███████╗███████╗██║ █╗ ██║   ███████╗█████╔╝ ██║██║     ██║     ███████╗',
+  '   ╚════██║╚════██║██║███╗██║   ╚════██║██╔═██╗ ██║██║     ██║     ╚════██║',
+  '   ███████║███████║╚███╔███╔╝█╗ ███████║██║  ██╗██║███████╗███████╗███████║',
+  '   ╚══════╝╚══════╝ ╚══╝╚══╝ ╚╝ ╚══════╝╚═╝  ╚═╝╚═╝╚══════╝╚══════╝╚══════╝',
 ] as const;
 
-// Ocean gradient colors (top to bottom): light cyan → deeper blue
+// Red gradient colors (top to bottom): bright red → deep red
 // All colors kept bright enough to be readable on dark backgrounds
 // Length must match LOGO_LINES (one color per line).
 const GRADIENT_COLORS: readonly [number, number, number][] = [
-  [0, 230, 255],
-  [0, 210, 250],
-  [0, 190, 240],
-  [0, 170, 230],
-  [0, 155, 220],
-  [0, 140, 210],
+  [255, 80, 80],
+  [240, 55, 55],
+  [220, 35, 35],
+  [200, 20, 20],
+  [185, 10, 10],
+  [170, 0, 0],
 ] as const;
 
 /** Check if colors are disabled via NO_COLOR convention (https://no-color.org). */
@@ -47,7 +47,7 @@ function colorLine(line: string, index: number): string {
     const [r, g, b] = color;
     return `\x1b[38;2;${r};${g};${b}m${line}\x1b[0m`;
   }
-  return pc.cyan(line);
+  return pc.red(line);
 }
 
 /**
