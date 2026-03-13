@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a bug in skillfish
+description: Report a bug in sswskills
 labels: ['bug', 'needs-triage']
 body:
   - type: markdown
@@ -10,8 +10,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: skillfish version
-      description: Run `npx skillfish --version`
+      label: sswskills version
+      description: Run `npx sswskills --version`
       placeholder: '1.0.8'
     validations:
       required: true
@@ -51,7 +51,7 @@ body:
       label: Steps to reproduce
       description: Minimal steps to reproduce the bug
       placeholder: |
-        1. Run `npx skillfish add owner/repo`
+        1. Run `npx sswskills add owner/repo`
         2. Select skill X
         3. See error
     validations:

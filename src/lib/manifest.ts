@@ -1,6 +1,6 @@
 /**
  * Manifest handling for skill tracking.
- * Each installed skill has a .skillfish.json file that tracks its origin.
+ * Each installed skill has a .sswskills.json file that tracks its origin.
  */
 
 import { existsSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'fs';
@@ -10,7 +10,7 @@ import { isValidPath } from '../utils.js';
 
 // === Constants ===
 
-export const MANIFEST_FILENAME = '.skillfish.json';
+export const MANIFEST_FILENAME = '.sswskills.json';
 export const MANIFEST_VERSION = 2;
 
 /** Supported manifest versions for reading (we write latest only) */
@@ -35,7 +35,7 @@ export type SkillSource = 'manifest' | 'manual';
 
 /**
  * Manifest schema for tracking installed skills.
- * Stored in .skillfish.json within each skill directory.
+ * Stored in .sswskills.json within each skill directory.
  */
 export interface SkillManifest {
   /** Schema version for future migrations */

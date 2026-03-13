@@ -45,7 +45,7 @@ coverage/
 .cline/
 .opencode/
 .mcp.json
-skillfish.json
+sswskills.json
 
 # Development tracking
 todos/
@@ -54,4 +54,4 @@ docs/solutions
 
 # Supabase CLI cache
 supabase/
-skillfish.json
+sswskills.json

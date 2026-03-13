@@ -1,5 +1,5 @@
 /**
- * `skillfish search` command - Search for skills in the registry.
+ * `sswskills search` command - Search for skills in the registry.
  */
 
 import { Command } from 'commander';
@@ -28,9 +28,9 @@ export const searchCommand = new Command('search')
     'after',
     `
 Examples:
-  $ skillfish search github             Search for "github" skills
-  $ skillfish search "code review"      Search with multiple words
-  $ skillfish search git --limit 3      Limit results to 3`,
+  $ sswskills search github             Search for "github" skills
+  $ sswskills search "code review"      Search with multiple words
+  $ sswskills search git --limit 3      Limit results to 3`,
   )
   .action(async (query: string, options: SearchCommandOptions, command: Command) => {
     const jsonMode = command.parent?.opts().json ?? false;
@@ -99,7 +99,7 @@ Examples:
     // Display banner and intro (TTY only, not in JSON mode)
     if (isTTY() && !jsonMode) {
       printBanner();
-      p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim('Search')}`);
+      p.intro(`${pc.bgCyan(pc.black(' sswskills '))} ${pc.dim('Search')}`);
     }
 
     // Track command usage (fire and forget)

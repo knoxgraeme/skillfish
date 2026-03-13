@@ -1,5 +1,5 @@
 /**
- * `skillfish install` command - Install skills from a manifest file.
+ * `sswskills install` command - Install skills from a manifest file.
  */
 
 import { Command } from 'commander';
@@ -85,9 +85,9 @@ type SkillAction =
 // === Command Definition ===
 
 export const installCommand = new Command('install')
-  .description('Install skills from a skillfish.json manifest')
-  .option('--global', 'Install from ~/skillfish.json to global location')
-  .option('--project', 'Install from ./skillfish.json to project location')
+  .description('Install skills from a sswskills.json manifest')
+  .option('--global', 'Install from ~/sswskills.json to global location')
+  .option('--project', 'Install from ./sswskills.json to project location')
   .option('-y, --yes', 'Skip all confirmation prompts')
   .option('--dry-run', 'Show what would happen without making changes')
   .helpOption('-h, --help', 'Display help for command')
@@ -95,11 +95,11 @@ export const installCommand = new Command('install')
     'after',
     `
 Examples:
-  $ skillfish install              Install skills (interactive location selection)
-  $ skillfish install --project    Install skills from ./skillfish.json
-  $ skillfish install --global     Install skills from ~/skillfish.json
-  $ skillfish install --dry-run    Preview changes without installing
-  $ skillfish install --yes        Skip confirmation prompts`,
+  $ sswskills install              Install skills (interactive location selection)
+  $ sswskills install --project    Install skills from ./sswskills.json
+  $ sswskills install --global     Install skills from ~/sswskills.json
+  $ sswskills install --dry-run    Preview changes without installing
+  $ sswskills install --yes        Skip confirmation prompts`,
   )
   .action(async (options: InstallCommandOptions, command: Command) => {
     const jsonMode = command.parent?.opts().json ?? false;
@@ -162,7 +162,7 @@ Examples:
     // Show banner (TTY only, not in JSON mode)
     if (isTTY() && !jsonMode) {
       printBanner();
-      p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim(`v${version}`)}`);
+      p.intro(`${pc.bgCyan(pc.black(' sswskills '))} ${pc.dim(`v${version}`)}`);
     }
 
     // Track command usage (fire and forget)
@@ -181,10 +181,10 @@ Examples:
     const manifest = readProjectManifest(manifestPath);
 
     if (!manifest) {
-      const displayPath = globalFlag ? '~/skillfish.json' : 'skillfish.json';
+      const displayPath = globalFlag ? '~/sswskills.json' : 'sswskills.json';
       if (!existsSync(manifestPath)) {
         exitWithError(
-          `No manifest found at ${displayPath}. Run ${pc.cyan('skillfish bundle')} to generate one from installed skills.`,
+          `No manifest found at ${displayPath}. Run ${pc.cyan('sswskills bundle')} to generate one from installed skills.`,
           EXIT_CODES.NOT_FOUND,
         );
       } else {
@@ -335,7 +335,7 @@ Examples:
       for (const conflict of conflicts) {
         const skillName = deriveSkillDirName(conflict.entry);
         const typeLabel = conflict.type === 'manual' ? 'a manual install' : 'an untracked skill';
-        const msg = `Skill '${skillName}' already exists as ${typeLabel}. Remove it first with \`skillfish remove ${skillName}\` or remove it from the manifest.`;
+        const msg = `Skill '${skillName}' already exists as ${typeLabel}. Remove it first with \`sswskills remove ${skillName}\` or remove it from the manifest.`;
         addError(msg);
         jsonOutput.conflicts.push({ skill: skillName, reason: `${conflict.type} conflict` });
         if (!jsonMode) {
@@ -902,13 +902,13 @@ async function selectInstallLocation(
   // If flag specified, use it (error handling happens later if manifest missing)
   if (projectFlag) {
     if (!jsonMode) {
-      p.log.info(`Location: ${pc.cyan('Project')} ${pc.dim('(skillfish.json)')}`);
+      p.log.info(`Location: ${pc.cyan('Project')} ${pc.dim('(sswskills.json)')}`);
     }
     return { location: 'project', baseDir: process.cwd(), manifestPath: projectManifestPath };
   }
   if (globalFlag) {
     if (!jsonMode) {
-      p.log.info(`Location: ${pc.cyan('Global')} ${pc.dim('(~/skillfish.json)')}`);
+      p.log.info(`Location: ${pc.cyan('Global')} ${pc.dim('(~/sswskills.json)')}`);
     }
     return { location: 'global', baseDir: homedir(), manifestPath: globalManifestPath };
   }
@@ -922,18 +922,18 @@ async function selectInstallLocation(
   if (!hasProjectManifest && !hasGlobalManifest) {
     p.log.error('No manifest found.');
     p.log.info(
-      pc.dim(`Run ${pc.cyan('skillfish bundle')} to create a manifest from installed skills.`),
+      pc.dim(`Run ${pc.cyan('sswskills bundle')} to create a manifest from installed skills.`),
     );
     process.exit(EXIT_CODES.NOT_FOUND);
   }
 
   // If only one exists, use it automatically
   if (hasProjectManifest && !hasGlobalManifest) {
-    p.log.info(`Location: ${pc.cyan('Project')} ${pc.dim('(skillfish.json)')}`);
+    p.log.info(`Location: ${pc.cyan('Project')} ${pc.dim('(sswskills.json)')}`);
     return { location: 'project', baseDir: process.cwd(), manifestPath: projectManifestPath };
   }
   if (hasGlobalManifest && !hasProjectManifest) {
-    p.log.info(`Location: ${pc.cyan('Global')} ${pc.dim('(~/skillfish.json)')}`);
+    p.log.info(`Location: ${pc.cyan('Global')} ${pc.dim('(~/sswskills.json)')}`);
     return { location: 'global', baseDir: homedir(), manifestPath: globalManifestPath };
   }
 
@@ -944,12 +944,12 @@ async function selectInstallLocation(
       {
         value: 'global' as const,
         label: 'Global',
-        hint: '~/skillfish.json',
+        hint: '~/sswskills.json',
       },
       {
         value: 'project' as const,
         label: 'Project',
-        hint: './skillfish.json',
+        hint: './sswskills.json',
       },
     ],
   });

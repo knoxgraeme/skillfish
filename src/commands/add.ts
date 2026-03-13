@@ -79,12 +79,12 @@ export const addCommand = new Command('add')
     'after',
     `
 Examples:
-  $ skillfish add owner/repo                  Install from a repository
-  $ skillfish add owner/repo my-skill         Install skill by name
-  $ skillfish add owner/repo --all            Install all skills in repo
-  $ skillfish add owner/repo/plugin/skill     Install a specific skill by path
-  $ skillfish add owner/repo --path path/to   Install skill at specific path
-  $ skillfish add owner/repo --project        Install to current project only`,
+  $ sswskills add owner/repo                  Install from a repository
+  $ sswskills add owner/repo my-skill         Install skill by name
+  $ sswskills add owner/repo --all            Install all skills in repo
+  $ sswskills add owner/repo/plugin/skill     Install a specific skill by path
+  $ sswskills add owner/repo --path path/to   Install skill at specific path
+  $ sswskills add owner/repo --project        Install to current project only`,
   )
   .action(
     async (
@@ -131,7 +131,7 @@ Examples:
       // Show banner and intro (TTY only, not in JSON mode)
       if (isTTY() && !jsonMode) {
         printBanner();
-        p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim(`v${version}`)}`);
+        p.intro(`${pc.bgCyan(pc.black(' sswskills '))} ${pc.dim(`v${version}`)}`);
       }
 
       // Track command usage (fire and forget)
@@ -272,7 +272,7 @@ Examples:
         p.log.error(errorMsg);
         p.log.info(pc.dim(hint));
         if (!isLocal) {
-          p.outro(pc.dim('https://skill.fish/agents'));
+          p.outro(pc.dim('https://github.com/SSWSydney/sswskills'));
         }
         process.exit(EXIT_CODES.GENERAL_ERROR);
       }

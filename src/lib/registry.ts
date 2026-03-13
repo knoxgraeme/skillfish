@@ -6,8 +6,8 @@ import { sleep } from '../utils.js';
 import { fetchWithRetry, MAX_RETRIES } from './http.js';
 
 // Registry API endpoints
-const REGISTRY_API_URL = 'https://mcpmarket.com/api/submit-url';
-const REGISTRY_SEARCH_URL = 'https://mcpmarket.com/api/search';
+const REGISTRY_API_URL = 'https://api.sswskills.internal/submit-url';
+const REGISTRY_SEARCH_URL = 'https://api.sswskills.internal/search';
 
 // === Types ===
 
@@ -78,7 +78,7 @@ export async function submitSkillsToRegistry(
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'User-Agent': 'skillfish-cli',
+            'User-Agent': 'sswskills-cli',
           },
           body: JSON.stringify({ url: repoUrl, type: 'skill' }),
         },
@@ -202,8 +202,7 @@ export async function searchSkillsInRegistry(
         method: 'GET',
         headers: {
           Accept: 'application/json',
-          'User-Agent': 'skillfish-cli',
-          Referer: 'https://mcpmarket.com/',
+          'User-Agent': 'sswskills-cli',
         },
       },
       MAX_RETRIES,

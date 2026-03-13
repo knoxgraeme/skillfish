@@ -38,6 +38,15 @@ export function getSkillSha(tree: GitTreeItem[], skillPath: string): string | un
     return blob?.sha;
   }
 
+  // Direct .md/.mdx file - use the blob SHA directly
+  if (
+    (skillPath.endsWith('.md') || skillPath.endsWith('.mdx')) &&
+    !skillPath.endsWith(SKILL_FILENAME)
+  ) {
+    const blob = tree.find((item) => item.path === skillPath && item.type === 'blob');
+    return blob?.sha;
+  }
+
   // Subdirectory skill - use the directory's tree SHA
   const dirPath = skillPath.replace(/\/SKILL\.md$/, '');
   const dir = tree.find((item) => item.path === dirPath && item.type === 'tree');
@@ -143,7 +152,8 @@ function wrapApiError(err: unknown): never {
  * @throws {NetworkError} On network errors
  */
 export async function fetchDefaultBranch(owner: string, repo: string): Promise<string> {
-  const headers: Record<string, string> = { 'User-Agent': 'skillfish' };
+  const headers: Record<string, string> = { 'User-Agent': 'sswskills' };
+  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
   const url = `https://api.github.com/repos/${owner}/${repo}`;
 
   try {
@@ -180,7 +190,8 @@ export async function fetchSkillMdContent(
   path: string,
   branch: string,
 ): Promise<string | null> {
-  const headers = { 'User-Agent': 'skillfish' };
+  const headers: Record<string, string> = { 'User-Agent': 'sswskills' };
+  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
   const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
 
   try {
@@ -202,7 +213,8 @@ export async function fetchSkillMdContent(
  * @throws {GitHubApiError} When the API response format is unexpected
  */
 export async function fetchTreeSha(owner: string, repo: string, branch: string): Promise<string> {
-  const headers: Record<string, string> = { 'User-Agent': 'skillfish' };
+  const headers: Record<string, string> = { 'User-Agent': 'sswskills' };
+  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
   const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}`;
 
   try {
@@ -243,7 +255,8 @@ export async function fetchRecursiveTree(
   repo: string,
   branch: string,
 ): Promise<{ sha: string; tree: GitTreeItem[] }> {
-  const headers: Record<string, string> = { 'User-Agent': 'skillfish' };
+  const headers: Record<string, string> = { 'User-Agent': 'sswskills' };
+  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
   const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
 
   try {

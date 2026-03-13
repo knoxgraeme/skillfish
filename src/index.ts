@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * skillfish CLI - Install AI agent skills from GitHub
+ * sswskills CLI - Install AI agent skills from GitHub
  *
  * Entry point that sets up Commander.js and imports commands.
  */
@@ -41,7 +41,7 @@ const helpStyles: HelpConfiguration = {
 };
 
 const program = new Command()
-  .name('skillfish')
+  .name('sswskills')
   .description('Install and manage AI agent skills from GitHub repositories')
   .version(pkg.version, '-v, --version', 'Show version number')
   .option('--json', 'Output as JSON (for automation)')
@@ -57,11 +57,11 @@ const program = new Command()
   .addHelpText('after', () => {
     const isTTY = process.stdout.isTTY;
     const examples = [
-      ['skillfish add owner/repo', 'Install skills from a repository'],
-      ['skillfish add owner/repo/plugin/skill', 'Install a specific skill'],
-      ['skillfish init', 'Create a new skill template'],
-      ['skillfish list', 'Show installed skills'],
-      ['skillfish remove my-skill', 'Remove a skill'],
+      ['sswskills add owner/repo', 'Install skills from a repository'],
+      ['sswskills add owner/repo/plugin/skill', 'Install a specific skill'],
+      ['sswskills init', 'Create a new skill template'],
+      ['sswskills list', 'Show installed skills'],
+      ['sswskills remove my-skill', 'Remove a skill'],
     ];
 
     const title = isTTY ? pc.bold(pc.underline('Examples:')) : 'Examples:';
@@ -74,7 +74,9 @@ const program = new Command()
       return `${prefix}${command}${padding}${description}`;
     });
 
-    const docUrl = isTTY ? pc.bold(pc.cyan('https://skill.fish')) : 'https://skill.fish';
+    const docUrl = isTTY
+      ? pc.bold(pc.cyan('https://github.com/SSWSydney/sswskills'))
+      : 'https://github.com/SSWSydney/sswskills';
     const docLabel = isTTY ? pc.dim('Documentation:') : 'Documentation:';
 
     return `\n${title}\n${lines.join('\n')}\n\n${docLabel} ${docUrl}`;
@@ -113,8 +115,8 @@ program
     // Show update notification after command completes (if update available)
     notifier.notify({
       message: `Update available: {currentVersion} → {latestVersion}
-Run: npx skillfish@latest
-Or:  npm i -g skillfish`,
+Run: npx sswskills@latest
+Or:  npm i -g sswskills`,
     });
   })
   .catch((err) => {

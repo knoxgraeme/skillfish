@@ -1,5 +1,5 @@
 /**
- * `skillfish update` command - Check for and apply updates to installed skills.
+ * `sswskills update` command - Check for and apply updates to installed skills.
  */
 
 import { Command } from 'commander';
@@ -51,10 +51,10 @@ export const updateCommand = new Command('update')
     'after',
     `
 Examples:
-  $ skillfish update                  Check for updates interactively
-  $ skillfish update --yes            Update all outdated skills
-  $ skillfish update --json           Check for updates (JSON output)
-  $ skillfish update --yes --json     Update all outdated skills (JSON output)`,
+  $ sswskills update                  Check for updates interactively
+  $ sswskills update --yes            Update all outdated skills
+  $ sswskills update --json           Check for updates (JSON output)
+  $ sswskills update --yes --json     Update all outdated skills (JSON output)`,
   )
   .action(async (options: UpdateCommandOptions, command: Command) => {
     const jsonMode = command.parent?.opts().json ?? false;
@@ -93,7 +93,7 @@ Examples:
     // Show banner (TTY only, not in JSON mode)
     if (isTTY() && !jsonMode) {
       printBanner();
-      p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim(`v${version}`)}`);
+      p.intro(`${pc.bgCyan(pc.black(' sswskills '))} ${pc.dim(`v${version}`)}`);
     }
 
     // Track command usage (fire and forget)
@@ -147,7 +147,7 @@ Examples:
         console.log();
         p.log.info(
           pc.dim(
-            `${manifestSkills.length} skill${manifestSkills.length === 1 ? '' : 's'} controlled by manifest - update ${pc.cyan('skillfish.json')} and run ${pc.cyan('skillfish install')} instead.`,
+            `${manifestSkills.length} skill${manifestSkills.length === 1 ? '' : 's'} controlled by manifest - update ${pc.cyan('sswskills.json')} and run ${pc.cyan('sswskills install')} instead.`,
           ),
         );
       }
@@ -159,7 +159,7 @@ Examples:
       if (manifestSkills.length === 0) {
         console.log();
         p.log.info(pc.dim("Skills installed before this version don't have tracking info."));
-        p.log.info(pc.dim('Reinstall skills with `skillfish add` to enable updates.'));
+        p.log.info(pc.dim('Reinstall skills with `sswskills add` to enable updates.'));
       }
       p.outro(pc.dim('Done'));
       process.exit(EXIT_CODES.SUCCESS);

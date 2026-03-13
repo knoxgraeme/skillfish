@@ -1,5 +1,5 @@
 /**
- * `skillfish init` command - Generate a template skill.
+ * `sswskills init` command - Generate a template skill.
  */
 
 import { Command } from 'commander';
@@ -172,10 +172,10 @@ export const initCommand = new Command('init')
     'after',
     `
 Examples:
-  $ skillfish init                            Interactive skill creation
-  $ skillfish init --name my-skill            Create skill with specified name
-  $ skillfish init --project                  Create in current project
-  $ skillfish init --name my-skill --yes      Non-interactive creation`,
+  $ sswskills init                            Interactive skill creation
+  $ sswskills init --name my-skill            Create skill with specified name
+  $ sswskills init --project                  Create in current project
+  $ sswskills init --name my-skill --yes      Non-interactive creation`,
   )
   .action(async (options: InitCommandOptions, command: Command) => {
     const jsonMode = command.parent?.opts().json ?? false;
@@ -217,7 +217,7 @@ Examples:
     if (isTTY() && !jsonMode) {
       printBanner();
       p.intro(
-        `${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim(`v${version}`)} ${pc.dim('· Create a skill')}`,
+        `${pc.bgCyan(pc.black(' sswskills '))} ${pc.dim(`v${version}`)} ${pc.dim('· Create a skill')}`,
       );
     }
 
@@ -410,7 +410,7 @@ Examples:
       p.log.error(errorMsg);
       p.log.info(pc.dim(hint));
       if (!isLocal) {
-        p.outro(pc.dim('https://skill.fish/agents'));
+        p.outro(pc.dim('https://github.com/SSWSydney/sswskills'));
       }
       process.exit(EXIT_CODES.GENERAL_ERROR);
     }
@@ -522,10 +522,10 @@ Examples:
       if (optionalDirs.length > 0) {
         console.log(pc.dim(`  2. Add files to ${optionalDirs.map((d) => `${d}/`).join(', ')}`));
         console.log(pc.dim('  3. Test with your AI agent'));
-        console.log(pc.dim('  4. Share on skill.fish or GitHub'));
+        console.log(pc.dim('  4. Share on GitHub'));
       } else {
         console.log(pc.dim('  2. Test with your AI agent'));
-        console.log(pc.dim('  3. Share on skill.fish or GitHub'));
+        console.log(pc.dim('  3. Share on GitHub'));
       }
       console.log();
       p.outro(pc.green(`Done! Created ${created} skill${created === 1 ? '' : 's'}`));

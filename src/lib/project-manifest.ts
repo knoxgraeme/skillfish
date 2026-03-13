@@ -1,6 +1,6 @@
 /**
  * Project manifest handling for declarative skill installation.
- * Reads/writes skillfish.json at project or global level.
+ * Reads/writes sswskills.json at project or global level.
  */
 
 import { existsSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'fs';
@@ -11,14 +11,14 @@ import { isValidPath } from '../utils.js';
 
 // === Constants ===
 
-export const PROJECT_MANIFEST_FILENAME = 'skillfish.json';
+export const PROJECT_MANIFEST_FILENAME = 'sswskills.json';
 export const PROJECT_MANIFEST_VERSION = 1;
 
 // === Types ===
 
 /**
  * Project manifest schema for declarative skill installation.
- * Stored in skillfish.json at project root or home directory.
+ * Stored in sswskills.json at project root or home directory.
  */
 export interface ProjectManifest {
   /** Schema version for future migrations */
@@ -67,7 +67,7 @@ export interface SkillCollision {
 /**
  * Get the path to the project manifest file.
  *
- * @param global - If true, returns path to ~/skillfish.json
+ * @param global - If true, returns path to ~/sswskills.json
  * @returns Path to the manifest file
  */
 export function getProjectManifestPath(global: boolean): string {

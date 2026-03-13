@@ -1,4 +1,4 @@
-const TELEMETRY_URL = 'https://mcpmarket.com/api/telemetry';
+const TELEMETRY_URL = 'https://api.sswskills.internal/telemetry';
 
 /** Timeout for telemetry requests (ms) */
 const TELEMETRY_TIMEOUT = 5000;

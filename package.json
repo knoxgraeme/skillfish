@@ -1,10 +1,10 @@
 {
-  "name": "skillfish",
+  "name": "sswskills",
   "version": "1.0.29",
-  "description": "All in one Skill manager for AI coding agents. Install, update, and sync Skills across Claude Code, Cursor, Copilot + more.",
+  "description": "SSW Skills manager for AI coding agents. Install, update, and sync Skills across Claude Code, Cursor, Copilot + more.",
   "type": "module",
   "bin": {
-    "skillfish": "dist/index.js"
+    "sswskills": "dist/index.js"
   },
   "files": [
     "dist",
@@ -16,10 +16,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/knoxgraeme/skillfish.git"
+    "url": "git+https://github.com/SSWSydney/sswskills.git"
   },
   "bugs": {
-    "url": "https://github.com/knoxgraeme/skillfish/issues"
+    "url": "https://github.com/SSWSydney/sswskills/issues"
   },
   "scripts": {
     "build": "tsc",
@@ -59,10 +59,10 @@
   ],
   "author": "Graeme Knox",
   "license": "AGPL-3.0",
-  "homepage": "https://skill.fish",
+  "homepage": "https://github.com/SSWSydney/sswskills",
   "funding": {
     "type": "github",
-    "url": "https://github.com/sponsors/knoxgraeme"
+    "url": "https://github.com/sponsors/SSWSydney"
   },
   "publishConfig": {
     "access": "public"

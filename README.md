@@ -1,17 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/knoxgraeme/skillfish/main/assets/logo.png" alt="skillfish" width="600">
-</p>
-
-<p align="center">
-  <a href="https://npmjs.com/package/skillfish"><img src="https://img.shields.io/npm/v/skillfish" alt="npm"></a>
-  <a href="https://npmjs.com/package/skillfish"><img src="https://img.shields.io/npm/dm/skillfish" alt="downloads"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/npm/l/skillfish" alt="license"></a>
-  <a href="package.json"><img src="https://img.shields.io/node/v/skillfish" alt="node"></a>
-  <a href="https://github.com/knoxgraeme/skillfish/actions"><img src="https://github.com/knoxgraeme/skillfish/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-</p>
-
-<p align="center">
-  <strong>The skill manager for AI coding agents.</strong><br>
+  <strong>SSW Skills — The skill manager for AI coding agents.</strong><br>
   Install, update, and sync skills across Claude Code, Cursor, Copilot + more.
 </p>
 
@@ -21,16 +9,16 @@
 
 ```bash
 # One-off skill installation
-npx skillfish add owner/repo
+npx sswskills add owner/repo
 
 # For skill management (list, update, remove), install globally
-npm i -g skillfish
+npm i -g sswskills
 ```
 
 One command installs to **all detected agents** on your system.
 
 > [!TIP]
-> **New:** [Sync skills across your team](#team-skill-sync) with `skillfish bundle`.
+> **New:** [Sync skills across your team](#team-skill-sync) with `sswskills bundle`.
 
 ## What Are Agent Skills?
 
@@ -42,69 +30,67 @@ Learn more at [agentskills.io](https://agentskills.io).
 
 ## Find Skills
 
-- **[skill.fish](https://skill.fish)** - Browse and discover community skills
-- **[MCP Market](https://mcpmarket.com/tools/skills)** - Skills directory
-- **`skillfish search <query>`** - Search from the command line
+- **`sswskills search <query>`** - Search from the command line
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `skillfish add <owner/repo>` | Install skills |
-| `skillfish init` | Create a new skill |
-| `skillfish list` | View installed skills |
-| `skillfish remove [name]` | Remove skills |
-| `skillfish search <query>` | Search for skills on skill.fish |
-| `skillfish update` | Update installed skills |
-| `skillfish bundle` | Create a manifest from installed skills |
-| `skillfish install` | Install skills from a manifest |
-| `skillfish submit <repo>` | Submit skills to skill.fish |
+| `sswskills add <owner/repo>` | Install skills |
+| `sswskills init` | Create a new skill |
+| `sswskills list` | View installed skills |
+| `sswskills remove [name]` | Remove skills |
+| `sswskills search <query>` | Search for skills |
+| `sswskills update` | Update installed skills |
+| `sswskills bundle` | Create a manifest from installed skills |
+| `sswskills install` | Install skills from a manifest |
+| `sswskills submit <repo>` | Submit skills to the registry |
 
 All commands support `--json` for automation.
 
 ## Examples
 
 ```bash
-skillfish add owner/repo             # Install from a repository
-skillfish add owner/repo --all       # Install all skills from repo
-skillfish init                       # Create a new skill (interactive)
-skillfish init --name my-skill       # Create with a specified name
-skillfish list                       # See what's installed
-skillfish search github              # Search for skills
-skillfish update                     # Update all skills
-skillfish remove old-skill           # Remove a skill
-skillfish submit owner/repo          # Submit your skills to skill.fish
-skillfish bundle                     # Create skillfish.json from installed skills
-skillfish install                    # Sync skills from manifest
-skillfish install --dry-run          # Preview what would change
+sswskills add owner/repo             # Install from a repository
+sswskills add owner/repo --all       # Install all skills from repo
+sswskills init                       # Create a new skill (interactive)
+sswskills init --name my-skill       # Create with a specified name
+sswskills list                       # See what's installed
+sswskills search github              # Search for skills
+sswskills update                     # Update all skills
+sswskills remove old-skill           # Remove a skill
+sswskills submit owner/repo          # Submit your skills to the registry
+sswskills bundle                     # Create sswskills.json from installed skills
+sswskills install                    # Sync skills from manifest
+sswskills install --dry-run          # Preview what would change
 ```
 
 ## Team Skill Sync
 
-Share skills across your team by committing a `skillfish.json` manifest to your repository.
+Share skills across your team by committing a `sswskills.json` manifest to your repository.
 
 **Setup (one developer):**
 ```bash
-skillfish add owner/repo             # Install skills your team needs
-skillfish bundle                     # Create skillfish.json manifest
-git add skillfish.json && git commit -m "Add skill manifest"
+sswskills add owner/repo             # Install skills your team needs
+sswskills bundle                     # Create sswskills.json manifest
+git add sswskills.json && git commit -m "Add skill manifest"
 ```
 
 **Sync (other developers):**
 ```bash
-skillfish install                    # Install skills from manifest
+sswskills install                    # Install skills from manifest
 ```
 
-The manifest tracks external skills only. Local skills (created with `skillfish init`) are version-controlled directly in your project.
+The manifest tracks external skills only. Local skills (created with `sswskills init`) are version-controlled directly in your project.
 
 ### How It Works
 
-1. `skillfish bundle` scans your installed skills and creates `skillfish.json`
-2. `skillfish install` reads the manifest and syncs your local skills to match:
+1. `sswskills bundle` scans your installed skills and creates `sswskills.json`
+2. `sswskills install` reads the manifest and syncs your local skills to match:
    - **Installs** skills listed in the manifest
    - **Updates** skills when the ref changes
    - **Removes** manifest-managed skills that are no longer listed
-3. Manually installed skills (`skillfish add`) are protected from removal
+3. Manually installed skills (`sswskills add`) are protected from removal
 
 ### Manifest Format
 
@@ -177,15 +163,15 @@ Works with 32 agents including:
 Install skills from a repository.
 
 ```bash
-skillfish add owner/repo                    # Auto-discover SKILL.md
-skillfish add owner/repo my-skill           # Install by skill name
-skillfish add owner/repo/path/to/skill      # Full path syntax
-skillfish add owner/repo --path skills/foo  # Explicit path
-skillfish add owner/repo --all              # Install all skills
-skillfish add owner/repo --force            # Overwrite existing
-skillfish add owner/repo --yes              # Skip confirmation
-skillfish add owner/repo --project          # Project only (./)
-skillfish add owner/repo --global           # Global only (~/)
+sswskills add owner/repo                    # Auto-discover SKILL.md
+sswskills add owner/repo my-skill           # Install by skill name
+sswskills add owner/repo/path/to/skill      # Full path syntax
+sswskills add owner/repo --path skills/foo  # Explicit path
+sswskills add owner/repo --all              # Install all skills
+sswskills add owner/repo --force            # Overwrite existing
+sswskills add owner/repo --yes              # Skip confirmation
+sswskills add owner/repo --project          # Project only (./)
+sswskills add owner/repo --global           # Global only (~/)  
 ```
 
 ### init
@@ -193,15 +179,14 @@ skillfish add owner/repo --global           # Global only (~/)
 Create a new skill template with `SKILL.md` and optional directories.
 
 ```bash
-skillfish init                                  # Interactive skill creation
-skillfish init --name my-skill                  # Specify skill name
-skillfish init --name my-skill --description "Does a thing"  # Non-interactive
-skillfish init --project                        # Create in current project (./)
-skillfish init --global                         # Create in home directory (~/)
-skillfish init --name my-skill --yes            # Skip all prompts
-skillfish init --author "your-name"             # Set author metadata
-skillfish init --license MIT                    # Set license
-```
+sswskills init                                  # Interactive skill creation
+sswskills init --name my-skill                  # Specify skill name
+sswskills init --name my-skill --description "Does a thing"  # Non-interactive
+sswskills init --project                        # Create in current project (./)
+sswskills init --global                         # Create in home directory (~/)
+sswskills init --name my-skill --yes            # Skip all prompts
+sswskills init --author "your-name"             # Set author metadata
+sswskills init --license MIT                    # Set license
 
 Interactive mode prompts for name, description, optional metadata (author, license), optional directories (`scripts/`, `references/`, `assets/`), install location, and target agents.
 
@@ -210,10 +195,10 @@ Interactive mode prompts for name, description, optional metadata (author, licen
 View installed skills.
 
 ```bash
-skillfish list                       # List all installed skills
-skillfish list --global              # Global skills only (~/)
-skillfish list --project             # Project skills only (./)
-skillfish list --agent "Claude Code" # Specific agent
+sswskills list                       # List all installed skills
+sswskills list --global              # Global skills only (~/)
+sswskills list --project             # Project skills only (./)
+sswskills list --agent "Claude Code" # Specific agent
 ```
 
 ### remove
@@ -221,23 +206,23 @@ skillfish list --agent "Claude Code" # Specific agent
 Remove installed skills.
 
 ```bash
-skillfish remove                          # Interactive picker
-skillfish remove my-skill                 # By name
-skillfish remove --all                    # Remove all
-skillfish remove my-skill --project       # Project only
-skillfish remove my-skill --global        # Global only
-skillfish remove my-skill --agent "Cursor" # Specific agent
-skillfish remove my-skill --yes           # Skip confirmation
+sswskills remove                          # Interactive picker
+sswskills remove my-skill                 # By name
+sswskills remove --all                    # Remove all
+sswskills remove my-skill --project       # Project only
+sswskills remove my-skill --global        # Global only
+sswskills remove my-skill --agent "Cursor" # Specific agent
+sswskills remove my-skill --yes           # Skip confirmation
 ```
 
 ### search
 
-Search for skills on [skill.fish](https://skill.fish).
+Search for skills in the registry.
 
 ```bash
-skillfish search github              # Search for skills
-skillfish search "code review"       # Search with multiple words
-skillfish search git --limit 10      # Limit results (default: 5, max: 50)
+sswskills search github              # Search for skills
+sswskills search "code review"       # Search with multiple words
+sswskills search git --limit 10      # Limit results (default: 5, max: 50)
 ```
 
 ### update
@@ -245,48 +230,46 @@ skillfish search git --limit 10      # Limit results (default: 5, max: 50)
 Update installed skills to latest version.
 
 ```bash
-skillfish update                     # Check for updates interactively
-skillfish update --yes               # Update all without prompting
-skillfish update --json              # Check for updates (JSON output)
+sswskills update                     # Check for updates interactively
+sswskills update --yes               # Update all without prompting
+sswskills update --json              # Check for updates (JSON output)
 ```
 
 ### bundle
 
-Create a `skillfish.json` manifest from currently installed skills.
+Create a `sswskills.json` manifest from currently installed skills.
 
 ```bash
-skillfish bundle                     # Bundle project skills to ./skillfish.json
-skillfish bundle --global            # Bundle global skills to ~/skillfish.json
-skillfish bundle --json              # Output bundled skills as JSON
+sswskills bundle                     # Bundle project skills to ./sswskills.json
+sswskills bundle --global            # Bundle global skills to ~/sswskills.json
+sswskills bundle --json              # Output bundled skills as JSON
 ```
 
-Local skills (created with `skillfish init`) are excluded from the manifest since they're version-controlled with your project.
+Local skills (created with `sswskills init`) are excluded from the manifest since they're version-controlled with your project.
 
 ### install
 
-Install skills from a `skillfish.json` manifest.
+Install skills from a `sswskills.json` manifest.
 
 ```bash
-skillfish install                    # Install from manifest (auto-detects location)
-skillfish install --project          # Install from ./skillfish.json
-skillfish install --global           # Install from ~/skillfish.json
-skillfish install --dry-run          # Preview changes without installing
-skillfish install --yes              # Skip confirmation prompts
+sswskills install                    # Install from manifest (auto-detects location)
+sswskills install --project          # Install from ./sswskills.json
+sswskills install --global           # Install from ~/sswskills.json
+sswskills install --dry-run          # Preview changes without installing
+sswskills install --yes              # Skip confirmation prompts
 ```
 
-When a skill is removed from the manifest, `skillfish install` removes it from your system. Manually installed skills are never removed automatically.
+When a skill is removed from the manifest, `sswskills install` removes it from your system. Manually installed skills are never removed automatically.
 
 ### submit
 
-Submit your skills to [skill.fish](https://skill.fish) for others to discover. Just paste a GitHub URL.
+Submit your skills to the registry for others to discover. Just paste a GitHub URL.
 
 ```bash
-skillfish submit https://github.com/owner/repo   # Paste any GitHub URL
-skillfish submit owner/repo                      # Or use owner/repo format
-skillfish submit owner/repo --yes                # Skip confirmation
+sswskills submit https://github.com/owner/repo   # Paste any GitHub URL
+sswskills submit owner/repo                      # Or use owner/repo format
+sswskills submit owner/repo --yes                # Skip confirmation
 ```
-
-Your submission will be reviewed and added to [skill.fish](https://skill.fish) and [MCP Market](https://mcpmarket.com).
 
 ---
 
@@ -349,25 +332,25 @@ Exit codes are consistent across all commands:
 
 ```bash
 # Install skills in CI (non-interactive, JSON output)
-skillfish add owner/repo --yes --json
+sswskills add owner/repo --yes --json
 
 # Create a skill template in CI
-skillfish init --name my-skill --description "My skill" --project --json
+sswskills init --name my-skill --description "My skill" --project --json
 
 # Check for outdated skills without applying
-skillfish update --json
+sswskills update --json
 
 # Apply updates
-skillfish update --yes --json
+sswskills update --yes --json
 ```
 
 ---
 
 ## Security
 
-Skills are markdown files that provide instructions to AI agents. Always review skills before installing. skillfish does not vet third-party skills.
+Skills are markdown files that provide instructions to AI agents. Always review skills before installing. sswskills does not vet third-party skills.
 
-To report vulnerabilities, email security@skill.fish. See [SECURITY.md](SECURITY.md).
+To report vulnerabilities, open an issue at [github.com/SSWSydney/sswskills](https://github.com/SSWSydney/sswskills). See [SECURITY.md](SECURITY.md).
 
 ## Contributing
 

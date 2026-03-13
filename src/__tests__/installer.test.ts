@@ -25,7 +25,7 @@ describe('safeCopyDir security', () => {
   let destDir: string;
 
   beforeEach(() => {
-    tempDir = mkdtempSync(join(tmpdir(), 'skillfish-test-'));
+    tempDir = mkdtempSync(join(tmpdir(), 'sswskills-test-'));
     srcDir = join(tempDir, 'src');
     destDir = join(tempDir, 'dest');
     mkdirSync(srcDir);
@@ -173,7 +173,7 @@ describe('installSkill', () => {
   let mockDownloadTemplate: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'skillfish-install-test-'));
+    tempDir = mkdtempSync(join(tmpdir(), 'sswskills-install-test-'));
 
     // Get the mocked giget
     const gigetModule = await import('giget');

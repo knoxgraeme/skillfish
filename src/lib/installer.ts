@@ -3,13 +3,22 @@
  * Handles downloading, validating, and installing skills to agent directories.
  */
 
-import { existsSync, mkdirSync, cpSync, rmSync, lstatSync, readdirSync, renameSync } from 'fs';
+import {
+  existsSync,
+  mkdirSync,
+  cpSync,
+  rmSync,
+  lstatSync,
+  readdirSync,
+  renameSync,
+  writeFileSync,
+} from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { downloadTemplate } from 'giget';
 import { getAgentSkillDir, type Agent } from './agents.js';
-import { SKILL_FILENAME } from './github.js';
+import { SKILL_FILENAME, fetchSkillMdContent } from './github.js';
 import {
   writeManifest,
   type SkillManifest,
@@ -32,7 +41,7 @@ export interface InstallOptions {
   baseDir: string;
   /** Branch to clone from. If not specified, giget will use the repository's default branch. */
   branch?: string;
-  /** Tree SHA for manifest tracking. If provided, .skillfish.json will be written. */
+  /** Tree SHA for manifest tracking. If provided, .sswskills.json will be written. */
   sha?: string;
   /** User's pinned ref (e.g., "v1.0.0", "main") - preserves original request */
   ref?: string;
@@ -151,7 +160,7 @@ export async function installSkill(
 
   const { force, baseDir, branch, sha, ref, source } = options;
 
-  const tmpDir = join(homedir(), '.cache', 'skillfish', `${owner}-${repo}-${randomUUID()}`);
+  const tmpDir = join(homedir(), '.cache', 'sswskills', `${owner}-${repo}-${randomUUID()}`);
   mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
 
   try {
@@ -171,15 +180,32 @@ export async function installSkill(
       gigetSource = `${gigetSource}#${branch}`;
     }
 
-    await downloadTemplate(gigetSource, {
-      dir: tmpDir,
-      forceClean: true,
-    });
+    // Direct .md/.mdx file: fetch via raw GitHub API and write as SKILL.md
+    // (giget downloads directories, not individual files)
+    const isDirectFile =
+      (skillPath.endsWith('.md') || skillPath.endsWith('.mdx')) && skillPath !== SKILL_FILENAME;
 
-    // Validate download
-    const skillMdPath = join(tmpDir, SKILL_FILENAME);
-    if (!existsSync(skillMdPath)) {
-      throw new SkillMdNotFoundError(skillPath);
+    if (isDirectFile) {
+      if (!branch) {
+        throw new Error('Branch is required for direct file installation');
+      }
+      const content = await fetchSkillMdContent(owner, repo, skillPath, branch);
+      if (!content) {
+        throw new SkillMdNotFoundError(skillPath);
+      }
+      writeFileSync(join(tmpDir, SKILL_FILENAME), content, { encoding: 'utf8', mode: 0o600 });
+    } else {
+      await downloadTemplate(gigetSource, {
+        dir: tmpDir,
+        forceClean: true,
+        auth: process.env.GITHUB_TOKEN,
+      });
+
+      // Validate download
+      const skillMdPath = join(tmpDir, SKILL_FILENAME);
+      if (!existsSync(skillMdPath)) {
+        throw new SkillMdNotFoundError(skillPath);
+      }
     }
 
     // Copy to each agent directory
@@ -200,7 +226,7 @@ export async function installSkill(
       mkdirSync(agentSkillDir, { recursive: true, mode: 0o700 });
 
       // Atomic install: backup existing directory before overwrite (allows rollback on failure)
-      const backupDir = `${destDir}.skillfish-backup`;
+      const backupDir = `${destDir}.sswskills-backup`;
       let hasBackup = false;
 
       if (existsSync(destDir)) {

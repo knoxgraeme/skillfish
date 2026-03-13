@@ -100,6 +100,17 @@ export function deriveSkillName(skillPath: string, repoName: string): string {
     return repoName;
   }
 
+  // Direct .md/.mdx file (e.g. content/prompts/code-review.md) — use filename without extension
+  if (
+    (skillPath.endsWith('.md') || skillPath.endsWith('.mdx')) &&
+    !skillPath.endsWith('SKILL.md')
+  ) {
+    const filename = basename(skillPath);
+    const name = filename.replace(/\.mdx?$/, '');
+    if (/^[\w.-]+$/.test(name)) return name;
+    return repoName;
+  }
+
   const normalized = skillPath.replace(/\/SKILL\.md$/i, '');
   const name = basename(normalized);
 
@@ -127,13 +138,40 @@ export function truncate(text: string, maxLength: number): string {
   return text.slice(0, maxLength - 1).trim() + '…';
 }
 
+// Common documentation filenames that should not be treated as skills
+const EXCLUDED_MD_NAMES = new Set([
+  'README.md',
+  'readme.md',
+  'CHANGELOG.md',
+  'changelog.md',
+  'CONTRIBUTING.md',
+  'contributing.md',
+  'LICENSE.md',
+  'license.md',
+  'CODE_OF_CONDUCT.md',
+  'SECURITY.md',
+  'NOTICE.md',
+]);
+
 /**
- * Extract SKILL.md paths from validated GitHub tree response.
+ * Extract skill paths from validated GitHub tree response.
+ * Finds SKILL.md files and also direct .md/.mdx prompt files in subdirectories.
  */
 export function extractSkillPaths(data: GitTreeResponse, skillFilename = 'SKILL.md'): string[] {
   if (!data.tree) return [];
   return data.tree
-    .filter((item) => item.type === 'blob' && item.path.endsWith(skillFilename))
+    .filter((item) => {
+      if (item.type !== 'blob') return false;
+      const { path } = item;
+      // Always include SKILL.md files
+      if (path.endsWith(skillFilename)) return true;
+      // Also include .md/.mdx files in subdirectories (not root-level docs)
+      if ((path.endsWith('.md') || path.endsWith('.mdx')) && path.includes('/')) {
+        const filename = path.split('/').pop() ?? '';
+        return !EXCLUDED_MD_NAMES.has(filename) && filename !== skillFilename;
+      }
+      return false;
+    })
     .map((item) => item.path);
 }
 

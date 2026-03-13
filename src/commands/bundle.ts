@@ -55,17 +55,17 @@ interface DiscoveredSkill {
 // === Command Definition ===
 
 export const bundleCommand = new Command('bundle')
-  .description('Bundle installed skills into a skillfish.json manifest')
-  .option('--global', 'Bundle global skills to ~/skillfish.json')
-  .option('--project', 'Bundle project skills to ./skillfish.json')
+  .description('Bundle installed skills into a sswskills.json manifest')
+  .option('--global', 'Bundle global skills to ~/sswskills.json')
+  .option('--project', 'Bundle project skills to ./sswskills.json')
   .helpOption('-h, --help', 'Display help for command')
   .addHelpText(
     'after',
     `
 Examples:
-  $ skillfish bundle              Bundle project skills to ./skillfish.json
-  $ skillfish bundle --global     Bundle global skills to ~/skillfish.json
-  $ skillfish bundle --json       Output bundled skills as JSON`,
+  $ sswskills bundle              Bundle project skills to ./sswskills.json
+  $ sswskills bundle --global     Bundle global skills to ~/sswskills.json
+  $ sswskills bundle --json       Output bundled skills as JSON`,
   )
   .action(async (options: BundleCommandOptions, command: Command) => {
     const jsonMode = command.parent?.opts().json ?? false;
@@ -125,7 +125,7 @@ Examples:
     // Show banner (TTY only, not in JSON mode)
     if (isTTY() && !jsonMode) {
       printBanner();
-      p.intro(`${pc.bgCyan(pc.black(' skillfish '))} ${pc.dim(`v${version}`)}`);
+      p.intro(`${pc.bgCyan(pc.black(' sswskills '))} ${pc.dim(`v${version}`)}`);
     }
 
     // Track command usage (fire and forget)
@@ -167,7 +167,7 @@ Examples:
 
       console.log();
       p.log.info(pc.dim(`No skills found in ${location} scope.`));
-      p.log.info(pc.dim(`Run ${pc.cyan('skillfish add owner/repo')} to install skills first.`));
+      p.log.info(pc.dim(`Run ${pc.cyan('sswskills add owner/repo')} to install skills first.`));
       p.outro(pc.dim('Done'));
       process.exit(EXIT_CODES.SUCCESS);
     }
@@ -222,7 +222,7 @@ Examples:
       console.log();
       p.log.info(pc.dim('No external skills to bundle.'));
       p.log.info(
-        pc.dim(`Run ${pc.cyan('skillfish add owner/repo')} to install external skills first.`),
+        pc.dim(`Run ${pc.cyan('sswskills add owner/repo')} to install external skills first.`),
       );
       p.outro(pc.dim('Done'));
       process.exit(EXIT_CODES.SUCCESS);
@@ -246,7 +246,7 @@ Examples:
 
     // Update per-skill manifests to mark them as manifest-managed
     // Also upgrade to v2 with name field if missing
-    // This prevents "manual install conflict" errors when running `skillfish install`
+    // This prevents "manual install conflict" errors when running `sswskills install`
     for (const skill of discoveredSkills) {
       if (skill.manifest && (skill.manifest.source !== 'manifest' || !skill.manifest.name)) {
         const updatedManifest: SkillManifest = {
@@ -275,13 +275,13 @@ Examples:
     }
 
     console.log();
-    p.log.success(`Created ${pc.cyan(globalFlag ? '~/skillfish.json' : 'skillfish.json')}`);
+    p.log.success(`Created ${pc.cyan(globalFlag ? '~/sswskills.json' : 'sswskills.json')}`);
 
     if (globalFlag) {
-      p.log.info(pc.dim('Tip: Add ~/skillfish.json to your dotfiles for cross-machine sync.'));
+      p.log.info(pc.dim('Tip: Add ~/sswskills.json to your dotfiles for cross-machine sync.'));
     } else {
       p.log.info(
-        pc.dim(`Commit this file and run ${pc.cyan('skillfish install')} to sync with your team.`),
+        pc.dim(`Commit this file and run ${pc.cyan('sswskills install')} to sync with your team.`),
       );
     }
 
@@ -381,13 +381,13 @@ async function selectBundleLocation(
   // If flag specified, use it
   if (projectFlag) {
     if (!jsonMode) {
-      p.log.info(`Location: ${pc.cyan('Project')} ${pc.dim('(skillfish.json)')}`);
+      p.log.info(`Location: ${pc.cyan('Project')} ${pc.dim('(sswskills.json)')}`);
     }
     return { baseDir: process.cwd(), location: 'project' };
   }
   if (globalFlag) {
     if (!jsonMode) {
-      p.log.info(`Location: ${pc.cyan('Global')} ${pc.dim('(~/skillfish.json)')}`);
+      p.log.info(`Location: ${pc.cyan('Global')} ${pc.dim('(~/sswskills.json)')}`);
     }
     return { baseDir: homedir(), location: 'global' };
   }
@@ -404,12 +404,12 @@ async function selectBundleLocation(
       {
         value: 'global' as const,
         label: 'Global',
-        hint: 'Create ~/skillfish.json',
+        hint: 'Create ~/sswskills.json',
       },
       {
         value: 'project' as const,
         label: 'Project',
-        hint: 'Create ./skillfish.json',
+        hint: 'Create ./sswskills.json',
       },
     ],
   });

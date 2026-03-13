@@ -1,12 +1,12 @@
-# Contributing to skillfish
+# Contributing to sswskills
 
 Thanks for your interest in contributing.
 
 ## Development Setup
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/skillfish.git
-cd skillfish
+git clone https://github.com/YOUR_USERNAME/sswskills.git
+cd sswskills
 npm install
 npm run build
 ```
@@ -18,7 +18,7 @@ npm run build
 npm link
 
 # Run the CLI
-skillfish add owner/repo
+sswskills add owner/repo
 ```
 
 ## Testing
@@ -77,7 +77,7 @@ Include:
 
 Welcome! We're excited to have you.
 
-1. **Find an issue**: Look for issues labeled [`good first issue`](https://github.com/knoxgraeme/skillfish/labels/good%20first%20issue)
+1. **Find an issue**: Look for issues labeled [`good first issue`](https://github.com/SSWSydney/sswskills/labels/good%20first%20issue)
 2. **Claim it**: Comment "I'd like to work on this"
 3. **Ask questions**: We're here to help - no question is too small
 4. **Submit your PR**: We'll review it promptly

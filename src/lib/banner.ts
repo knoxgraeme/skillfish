@@ -1,5 +1,5 @@
 /**
- * Shared ASCII art logo and banner display for skillfish CLI.
+ * Shared ASCII art logo and banner display for sswskills CLI.
  */
 
 import pc from 'picocolors';
@@ -62,7 +62,7 @@ export function getBannerText(): string {
   }
 
   lines.push(
-    `   ${pc.dim('The Skill Manager for AI Coding Agents')} — ${pc.bold(pc.cyan('https://skill.fish'))}`,
+    `   ${pc.dim('The SSW Skill Manager for AI Coding Agents')} — ${pc.bold(pc.cyan('https://github.com/SSWSydney/sswskills'))}`,
   );
   lines.push('');
 
