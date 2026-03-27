@@ -88,7 +88,15 @@ export async function submitSkillsToRegistry(
       // Validate Content-Type before parsing JSON
       const contentType = res.headers.get('content-type');
       if (!contentType?.includes('application/json')) {
-        throw new Error('Unexpected response type from registry');
+        let body = '';
+        try {
+          body = (await res.text()).trim();
+        } catch {
+          // ignore read errors
+        }
+        const statusInfo = !res.ok ? ` (HTTP ${res.status})` : '';
+        const bodyHint = body ? `: ${body.slice(0, 200)}` : '';
+        throw new Error(`Registry returned non-JSON response${statusInfo}${bodyHint}`);
       }
 
       const data = (await res.json()) as {
@@ -211,12 +219,23 @@ export async function searchSkillsInRegistry(
 
     // Validate Content-Type before parsing JSON
     const contentType = res.headers.get('content-type');
-    if (!contentType?.includes('application/json')) {
+    const isJson = contentType?.includes('application/json');
+
+    // Handle non-JSON responses (e.g. 403 plain text from CDN/WAF)
+    if (!isJson) {
+      let body = '';
+      try {
+        body = (await res.text()).trim();
+      } catch {
+        // ignore read errors
+      }
+      const statusInfo = !res.ok ? ` (HTTP ${res.status})` : '';
+      const bodyHint = body ? `: ${body.slice(0, 200)}` : '';
       return {
         success: false,
         results: [],
         totalCount: 0,
-        error: 'Unexpected response type from registry',
+        error: `Registry returned non-JSON response${statusInfo}${bodyHint}`,
       };
     }
 
