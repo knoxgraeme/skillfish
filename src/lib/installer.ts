@@ -157,7 +157,7 @@ export async function installSkill(
   try {
     // Download skill using giget (tarball-based, works reliably on all repo sizes)
     // Build giget source: github:owner/repo[/subpath][#branch]
-    const downloadPath = skillPath === SKILL_FILENAME ? '' : skillPath;
+    const downloadPath = skillPath === SKILL_FILENAME || skillPath === '.' ? '' : skillPath;
     let gigetSource = downloadPath
       ? `github:${owner}/${repo}/${downloadPath}`
       : `github:${owner}/${repo}`;

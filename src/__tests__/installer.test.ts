@@ -313,6 +313,33 @@ describe('installSkill', () => {
     // but the function should have called rmSync in the finally block
   });
 
+  it('installs root-level skill when path is "." (from manifest)', async () => {
+    // Regression test for GitHub issue #53: update fails when manifest stores path as "."
+    mockDownloadTemplate.mockImplementation(async (_source: string, options: { dir: string }) => {
+      mkdirSync(options.dir, { recursive: true });
+      writeFileSync(join(options.dir, 'SKILL.md'), '# Root Skill');
+      return { dir: options.dir, source: _source, url: 'https://github.com/owner/repo' };
+    });
+
+    const agents = [createMockAgent('Agent1', '.agent1/skills')];
+
+    const result = await installSkill('owner', 'repo', '.', 'test-skill', agents, {
+      force: true,
+      baseDir: tempDir,
+      branch: 'main',
+      sha: 'abc123',
+    });
+
+    expect(result.failed).toBe(false);
+    expect(result.installed).toHaveLength(1);
+
+    // Verify giget was called without the "." path (should be github:owner/repo#main, not github:owner/repo/.#main)
+    expect(mockDownloadTemplate).toHaveBeenCalledWith('github:owner/repo#main', expect.any(Object));
+
+    // Verify SKILL.md was copied
+    expect(existsSync(join(tempDir, '.agent1/skills', 'test-skill', 'SKILL.md'))).toBe(true);
+  });
+
   it('handles 404 errors gracefully', async () => {
     mockDownloadTemplate.mockRejectedValue(new Error('404 Not Found'));
 
