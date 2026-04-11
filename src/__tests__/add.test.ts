@@ -29,11 +29,13 @@ describe('add command', () => {
 
   it('accepts three-part format as owner/repo/path', () => {
     // Three parts is now valid: owner/repo/path
-    // This will fail at network level, not parsing
-    const { stderr } = invokeCli(['add', 'owner/repo/extra']);
-    // Should not fail with "Invalid format" - it should proceed to network request
-    expect(stderr).not.toContain('Invalid format');
-  });
+    // Use --json --yes --global to skip interactive prompts and fail fast
+    const { stdout } = invokeCli(['--json', 'add', 'owner/repo/extra', '--yes', '--global']);
+    const json = JSON.parse(stdout);
+    // Should not fail with format validation error - it should proceed past parsing
+    const hasFormatError = json.errors?.some((e: string) => e.includes('Invalid format'));
+    expect(hasFormatError).not.toBe(true);
+  }, 30_000);
 
   it('rejects invalid characters in owner/repo', () => {
     const { exitCode, stderr } = invokeCli(['add', 'owner;evil/repo']);

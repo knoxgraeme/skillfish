@@ -244,14 +244,16 @@ export async function searchSkillsInRegistry(
         id: number;
         name: string;
         slug: string;
-        github: string;
+        skill_name?: string;
+        plugin_name?: string;
+        github?: string;
         owner?: {
           name?: string;
           url?: string;
         };
         description: string;
-        github_stars: number;
-        relevance_score: number;
+        github_stars?: number;
+        relevance_score?: number;
       }>;
       pagination?: {
         totalItems: number;
@@ -283,19 +285,14 @@ export async function searchSkillsInRegistry(
     // Validate and transform API response to our SearchResult format
     // Filter out malformed items that are missing required string fields
     const results: SearchResult[] = data.skills
-      .filter(
-        (item) =>
-          typeof item.name === 'string' &&
-          typeof item.slug === 'string' &&
-          typeof item.github === 'string',
-      )
+      .filter((item) => typeof item.name === 'string' && typeof item.slug === 'string')
       .map((item) => ({
         name: item.name,
         slug: item.slug,
         type: 'skill' as const,
         owner: item.owner?.name ?? '',
         ownerUrl: item.owner?.url ?? '',
-        github: item.github,
+        github: item.github ?? '',
         description: item.description ?? '',
         stars: item.github_stars ?? 0,
         relevanceScore: item.relevance_score ?? 0,
