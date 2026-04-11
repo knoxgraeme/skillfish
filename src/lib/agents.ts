@@ -129,8 +129,9 @@ export const AGENT_CONFIGS: readonly AgentConfig[] = [
   {
     name: 'OpenClaw',
     dir: 'skills',
-    homePaths: ['.moltbot'],
-    cwdPaths: ['skills'],
+    globalDir: '.openclaw/skills',
+    homePaths: ['.openclaw/openclaw.json', '.openclaw'],
+    cwdPaths: ['.openclaw'],
   },
   {
     name: 'CodeBuddy',

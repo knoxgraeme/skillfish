@@ -150,7 +150,7 @@ Works with 32 agents including:
 | Antigravity | `~/.gemini/antigravity/skills/` |
 | Droid | `~/.factory/skills/` |
 | Augment | `~/.augment/rules/` |
-| OpenClaw | `~/.moltbot/skills/` |
+| OpenClaw | `~/.openclaw/skills/` |
 | CodeBuddy | `~/.codebuddy/skills/` |
 | Command Code | `~/.commandcode/skills/` |
 | Crush | `~/.config/crush/skills/` |
