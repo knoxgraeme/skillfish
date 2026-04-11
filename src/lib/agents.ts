@@ -35,9 +35,14 @@ export const AGENT_CONFIGS: readonly AgentConfig[] = [
   },
   {
     name: 'Windsurf',
-    dir: '.codeium/windsurf/skills',
-    homePaths: ['.codeium/windsurf/config.json', '.codeium/windsurf/argv.json'],
-    cwdPaths: ['.codeium/windsurf'],
+    dir: '.windsurf/skills',
+    globalDir: '.codeium/windsurf/skills',
+    homePaths: [
+      '.codeium/windsurf/config.json',
+      '.codeium/windsurf/argv.json',
+      '.codeium/windsurf',
+    ],
+    cwdPaths: ['.windsurf'],
   },
   {
     name: 'Codex',
