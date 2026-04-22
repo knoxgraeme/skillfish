@@ -29,9 +29,22 @@ vi.mock('../utils.js', async (importOriginal) => {
   };
 });
 
+// Mock auth module so tests control token availability
+vi.mock('../lib/auth.js', () => ({
+  getGitHubToken: vi.fn(),
+  hasGitHubToken: vi.fn(),
+  resetGitHubTokenCache: vi.fn(),
+}));
+
+import { getGitHubToken, hasGitHubToken } from '../lib/auth.js';
+const mockGetGitHubToken = vi.mocked(getGitHubToken);
+const mockHasGitHubToken = vi.mocked(hasGitHubToken);
+
 describe('fetchWithRetry', () => {
   beforeEach(() => {
     mockFetch.mockReset();
+    mockGetGitHubToken.mockReturnValue(undefined);
+    mockHasGitHubToken.mockReturnValue(false);
   });
 
   it('returns response on successful fetch', async () => {
@@ -105,6 +118,8 @@ describe('fetchWithRetry', () => {
 describe('findAllSkillMdFiles', () => {
   beforeEach(() => {
     mockFetch.mockReset();
+    mockGetGitHubToken.mockReturnValue(undefined);
+    mockHasGitHubToken.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -237,6 +252,8 @@ describe('findAllSkillMdFiles', () => {
 describe('fetchRecursiveTree', () => {
   beforeEach(() => {
     mockFetch.mockReset();
+    mockGetGitHubToken.mockReturnValue(undefined);
+    mockHasGitHubToken.mockReturnValue(false);
   });
 
   it('returns sha and tree on successful API response', async () => {
@@ -330,6 +347,76 @@ describe('fetchRecursiveTree', () => {
 
     expect(result.sha).toBe('f'.repeat(40));
     expect(result.tree).toEqual([]);
+  });
+});
+
+describe('GitHub auth header forwarding', () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it('sends Authorization header when token is available', async () => {
+    mockGetGitHubToken.mockReturnValue('my-secret-token');
+    mockHasGitHubToken.mockReturnValue(true);
+
+    const repoResponse = { default_branch: 'main' };
+    const treeResponse = {
+      sha: 'a'.repeat(40),
+      tree: [{ path: 'SKILL.md', type: 'blob' }],
+    };
+    mockFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify(repoResponse), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(treeResponse), { status: 200 }));
+
+    await findAllSkillMdFiles('owner', 'repo');
+
+    const firstCall = mockFetch.mock.calls[0];
+    const requestInit = firstCall[1] as RequestInit;
+    expect((requestInit.headers as Record<string, string>)['Authorization']).toBe(
+      'Bearer my-secret-token',
+    );
+  });
+
+  it('does not send Authorization header when no token is available', async () => {
+    mockGetGitHubToken.mockReturnValue(undefined);
+    mockHasGitHubToken.mockReturnValue(false);
+
+    const repoResponse = { default_branch: 'main' };
+    const treeResponse = {
+      sha: 'a'.repeat(40),
+      tree: [{ path: 'SKILL.md', type: 'blob' }],
+    };
+    mockFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify(repoResponse), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(treeResponse), { status: 200 }));
+
+    await findAllSkillMdFiles('owner', 'repo');
+
+    const firstCall = mockFetch.mock.calls[0];
+    const requestInit = firstCall[1] as RequestInit;
+    expect((requestInit.headers as Record<string, string>)['Authorization']).toBeUndefined();
+  });
+
+  it('includes GITHUB_TOKEN hint in RepoNotFoundError when no token is set', async () => {
+    mockGetGitHubToken.mockReturnValue(undefined);
+    mockHasGitHubToken.mockReturnValue(false);
+    mockFetch.mockResolvedValueOnce(new Response('not found', { status: 404 }));
+
+    await expect(fetchRecursiveTree('owner', 'repo', 'main')).rejects.toThrow(
+      /GITHUB_TOKEN if this is a private repository/,
+    );
+  });
+
+  it('does not include GITHUB_TOKEN hint when a token is already set', async () => {
+    mockGetGitHubToken.mockReturnValue('tok');
+    mockHasGitHubToken.mockReturnValue(true);
+    mockFetch.mockResolvedValueOnce(new Response('not found', { status: 404 }));
+
+    const err = await fetchRecursiveTree('owner', 'repo', 'main').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(RepoNotFoundError);
+    const message = (err as RepoNotFoundError).message;
+    expect(message).not.toContain('GITHUB_TOKEN');
+    expect(message).toMatch(/Check the owner\/repo name\.$/);
   });
 });
 

@@ -168,6 +168,17 @@ vi.mock('giget', () => {
   };
 });
 
+// Mock auth module
+vi.mock('../lib/auth.js', () => ({
+  getGitHubToken: vi.fn(),
+  hasGitHubToken: vi.fn(),
+  resetGitHubTokenCache: vi.fn(),
+}));
+
+import { getGitHubToken, hasGitHubToken } from '../lib/auth.js';
+const mockGetGitHubToken = vi.mocked(getGitHubToken);
+const mockHasGitHubToken = vi.mocked(hasGitHubToken);
+
 describe('installSkill', () => {
   let tempDir: string;
   let mockDownloadTemplate: ReturnType<typeof vi.fn>;
@@ -179,6 +190,10 @@ describe('installSkill', () => {
     const gigetModule = await import('giget');
     mockDownloadTemplate = gigetModule.downloadTemplate as ReturnType<typeof vi.fn>;
     mockDownloadTemplate.mockReset();
+
+    // Default: no token
+    mockGetGitHubToken.mockReturnValue(undefined);
+    mockHasGitHubToken.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -352,5 +367,74 @@ describe('installSkill', () => {
 
     expect(result.failed).toBe(true);
     expect(result.failureReason).toContain('Repository or path not found');
+  });
+
+  it('includes GITHUB_TOKEN hint in 404 message when no token is set', async () => {
+    mockGetGitHubToken.mockReturnValue(undefined);
+    mockHasGitHubToken.mockReturnValue(false);
+    mockDownloadTemplate.mockRejectedValue(new Error('404 Not Found'));
+
+    const agents = [createMockAgent('Agent1', '.agent1/skills')];
+    const result = await installSkill('owner', 'repo', 'SKILL.md', 'test-skill', agents, {
+      force: false,
+      baseDir: tempDir,
+    });
+
+    expect(result.failureReason).toContain('set GITHUB_TOKEN if this is a private repository');
+  });
+
+  it('omits GITHUB_TOKEN hint in 404 message when a token is already set', async () => {
+    mockGetGitHubToken.mockReturnValue('my-token');
+    mockHasGitHubToken.mockReturnValue(true);
+    mockDownloadTemplate.mockRejectedValue(new Error('404 Not Found'));
+
+    const agents = [createMockAgent('Agent1', '.agent1/skills')];
+    const result = await installSkill('owner', 'repo', 'SKILL.md', 'test-skill', agents, {
+      force: false,
+      baseDir: tempDir,
+    });
+
+    expect(result.failureReason).toContain('Repository or path not found');
+    expect(result.failureReason).not.toContain('GITHUB_TOKEN');
+  });
+
+  it('passes auth token to downloadTemplate when token is available', async () => {
+    mockGetGitHubToken.mockReturnValue('secret-token');
+    mockHasGitHubToken.mockReturnValue(true);
+    mockDownloadTemplate.mockImplementation(async (_source: string, options: { dir: string }) => {
+      mkdirSync(options.dir, { recursive: true });
+      writeFileSync(join(options.dir, 'SKILL.md'), '# Skill');
+      return { dir: options.dir, source: _source, url: 'https://github.com/owner/repo' };
+    });
+
+    const agents = [createMockAgent('Agent1', '.agent1/skills')];
+    await installSkill('owner', 'repo', 'SKILL.md', 'test-skill', agents, {
+      force: false,
+      baseDir: tempDir,
+    });
+
+    expect(mockDownloadTemplate).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ auth: 'secret-token' }),
+    );
+  });
+
+  it('does not pass auth option to downloadTemplate when no token', async () => {
+    mockGetGitHubToken.mockReturnValue(undefined);
+    mockHasGitHubToken.mockReturnValue(false);
+    mockDownloadTemplate.mockImplementation(async (_source: string, options: { dir: string }) => {
+      mkdirSync(options.dir, { recursive: true });
+      writeFileSync(join(options.dir, 'SKILL.md'), '# Skill');
+      return { dir: options.dir, source: _source, url: 'https://github.com/owner/repo' };
+    });
+
+    const agents = [createMockAgent('Agent1', '.agent1/skills')];
+    await installSkill('owner', 'repo', 'SKILL.md', 'test-skill', agents, {
+      force: false,
+      baseDir: tempDir,
+    });
+
+    const callOptions = mockDownloadTemplate.mock.calls[0][1] as Record<string, unknown>;
+    expect(callOptions['auth']).toBeUndefined();
   });
 });

@@ -60,6 +60,7 @@ npm run typecheck      # TypeScript type checking
 
 - `src/utils.ts` - Pure functions for path validation, frontmatter parsing, type guards for GitHub API responses
 - `src/telemetry.ts` - Anonymous install tracking (disabled with DO_NOT_TRACK=1 or CI=true)
+- `src/lib/auth.ts` - GitHub token resolution (`getGitHubToken()`, `hasGitHubToken()`). Reads `SKILLFISH_GITHUB_TOKEN` > `GITHUB_TOKEN` > `GH_TOKEN`, falls back to `gh auth token`. Token is cached per-process; call `resetGitHubTokenCache()` in tests.
 
 ### Key Patterns
 

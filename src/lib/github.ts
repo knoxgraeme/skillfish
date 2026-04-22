@@ -4,6 +4,7 @@
 
 import { isGitTreeResponse, extractSkillPaths, type GitTreeItem } from '../utils.js';
 import { fetchWithRetry } from './http.js';
+import { getGitHubToken, hasGitHubToken } from './auth.js';
 
 export const SKILL_FILENAME = 'SKILL.md';
 
@@ -66,7 +67,10 @@ export class RepoNotFoundError extends Error {
     public owner: string,
     public repo: string,
   ) {
-    super(`Repository not found: ${owner}/${repo}. Check the owner/repo name.`);
+    super(
+      `Repository not found: ${owner}/${repo}. Check the owner/repo name` +
+        (hasGitHubToken() ? '.' : ', or set GITHUB_TOKEN if this is a private repository.'),
+    );
     this.name = 'RepoNotFoundError';
   }
 }
@@ -92,6 +96,13 @@ export class GitHubApiError extends Error {
 }
 
 // === Helper Functions ===
+
+function githubHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'User-Agent': 'skillfish' };
+  const token = getGitHubToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+}
 
 /**
  * Check if a response indicates rate limiting and throw RateLimitError if so.
@@ -143,7 +154,7 @@ function wrapApiError(err: unknown): never {
  * @throws {NetworkError} On network errors
  */
 export async function fetchDefaultBranch(owner: string, repo: string): Promise<string> {
-  const headers: Record<string, string> = { 'User-Agent': 'skillfish' };
+  const headers = githubHeaders();
   const url = `https://api.github.com/repos/${owner}/${repo}`;
 
   try {
@@ -180,7 +191,7 @@ export async function fetchSkillMdContent(
   path: string,
   branch: string,
 ): Promise<string | null> {
-  const headers = { 'User-Agent': 'skillfish' };
+  const headers = githubHeaders();
   const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
 
   try {
@@ -202,7 +213,7 @@ export async function fetchSkillMdContent(
  * @throws {GitHubApiError} When the API response format is unexpected
  */
 export async function fetchTreeSha(owner: string, repo: string, branch: string): Promise<string> {
-  const headers: Record<string, string> = { 'User-Agent': 'skillfish' };
+  const headers = githubHeaders();
   const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}`;
 
   try {
@@ -243,7 +254,7 @@ export async function fetchRecursiveTree(
   repo: string,
   branch: string,
 ): Promise<{ sha: string; tree: GitTreeItem[] }> {
-  const headers: Record<string, string> = { 'User-Agent': 'skillfish' };
+  const headers = githubHeaders();
   const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
 
   try {

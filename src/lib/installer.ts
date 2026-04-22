@@ -9,6 +9,7 @@ import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { downloadTemplate } from 'giget';
 import { getAgentSkillDir, type Agent } from './agents.js';
+import { getGitHubToken, hasGitHubToken } from './auth.js';
 import { SKILL_FILENAME } from './github.js';
 import {
   writeManifest,
@@ -171,9 +172,11 @@ export async function installSkill(
       gigetSource = `${gigetSource}#${branch}`;
     }
 
+    const githubToken = getGitHubToken();
     await downloadTemplate(gigetSource, {
       dir: tmpDir,
       forceClean: true,
+      ...(githubToken ? { auth: githubToken } : {}),
     });
 
     // Validate download
@@ -307,7 +310,8 @@ export async function installSkill(
       const errMsg = err instanceof Error ? err.message : String(err);
       // Provide more helpful error messages for common failures
       if (errMsg.includes('404') || errMsg.includes('Not Found')) {
-        result.failureReason = `Repository or path not found: ${owner}/${repo}${skillPath !== SKILL_FILENAME ? `/${skillPath}` : ''}`;
+        const hint = hasGitHubToken() ? '' : ' (set GITHUB_TOKEN if this is a private repository)';
+        result.failureReason = `Repository or path not found: ${owner}/${repo}${skillPath !== SKILL_FILENAME ? `/${skillPath}` : ''}${hint}`;
       } else {
         result.failureReason = errMsg;
       }
