@@ -67,10 +67,8 @@ export class RepoNotFoundError extends Error {
     public owner: string,
     public repo: string,
   ) {
-    super(
-      `Repository not found: ${owner}/${repo}. Check the owner/repo name` +
-        (hasGitHubToken() ? '.' : ', or set GITHUB_TOKEN if this is a private repository.'),
-    );
+    const hint = hasGitHubToken() ? '' : ', or set GITHUB_TOKEN if this is a private repository';
+    super(`Repository not found: ${owner}/${repo}. Check the owner/repo name${hint}.`);
     this.name = 'RepoNotFoundError';
   }
 }

@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   findAllSkillMdFiles,
   fetchRecursiveTree,
+  fetchDefaultBranch,
   getSkillSha,
   RateLimitError,
   RepoNotFoundError,
@@ -417,6 +418,27 @@ describe('GitHub auth header forwarding', () => {
     const message = (err as RepoNotFoundError).message;
     expect(message).not.toContain('GITHUB_TOKEN');
     expect(message).toMatch(/Check the owner\/repo name\.$/);
+  });
+
+  it('includes GITHUB_TOKEN hint in fetchDefaultBranch 404 when no token is set', async () => {
+    mockGetGitHubToken.mockReturnValue(undefined);
+    mockHasGitHubToken.mockReturnValue(false);
+    mockFetch.mockResolvedValueOnce(new Response('not found', { status: 404 }));
+
+    await expect(fetchDefaultBranch('owner', 'repo')).rejects.toThrow(
+      /GITHUB_TOKEN if this is a private repository/,
+    );
+  });
+
+  it('does not include GITHUB_TOKEN hint in fetchDefaultBranch 404 when token is set', async () => {
+    mockGetGitHubToken.mockReturnValue('tok');
+    mockHasGitHubToken.mockReturnValue(true);
+    mockFetch.mockResolvedValueOnce(new Response('not found', { status: 404 }));
+
+    const err = await fetchDefaultBranch('owner', 'repo').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(RepoNotFoundError);
+    expect((err as RepoNotFoundError).message).not.toContain('GITHUB_TOKEN');
+    expect((err as RepoNotFoundError).message).toMatch(/Check the owner\/repo name\.$/);
   });
 });
 

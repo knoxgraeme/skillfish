@@ -15,6 +15,9 @@ let cachedToken: string | null | undefined = undefined;
  *   2. GITHUB_TOKEN
  *   3. GH_TOKEN
  *   4. `gh auth token` (if gh is on PATH and the user is logged in)
+ *
+ * Resolution happens once per process and the result is cached. Set env vars
+ * before the first call, or call `resetGitHubTokenCache()` to re-resolve.
  */
 export function getGitHubToken(): string | undefined {
   if (cachedToken !== undefined) {
