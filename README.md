@@ -290,6 +290,26 @@ Your submission will be reviewed and added to [skill.fish](https://skill.fish) a
 
 ---
 
+## Private Repositories
+
+skillfish installs from private repositories when a GitHub token is available. Tokens are resolved in this order:
+
+1. `SKILLFISH_GITHUB_TOKEN` - skillfish-specific override
+2. `GITHUB_TOKEN` - standard
+3. `GH_TOKEN` - GitHub CLI standard
+4. `gh auth token` - falls back to the GitHub CLI if you're logged in
+
+The simplest setup is `gh auth login`. Otherwise, export a token before running skillfish:
+
+```bash
+export GITHUB_TOKEN=ghp_...
+skillfish add owner/private-repo
+```
+
+Public repos work with or without a token, but providing one raises the GitHub API rate limit from 60 to 5,000 requests per hour.
+
+---
+
 ## Non-Interactive Mode
 
 All commands work without prompts for use in scripts, CI pipelines, and automation. Non-interactive mode activates when:

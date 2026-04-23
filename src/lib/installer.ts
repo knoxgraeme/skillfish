@@ -310,7 +310,9 @@ export async function installSkill(
       const errMsg = err instanceof Error ? err.message : String(err);
       // Provide more helpful error messages for common failures
       if (errMsg.includes('404') || errMsg.includes('Not Found')) {
-        const hint = hasGitHubToken() ? '' : ' (set GITHUB_TOKEN if this is a private repository)';
+        const hint = hasGitHubToken()
+          ? ''
+          : ' (set GITHUB_TOKEN if this is a private repository, or run `gh auth login`)';
         result.failureReason = `Repository or path not found: ${owner}/${repo}${skillPath !== SKILL_FILENAME ? `/${skillPath}` : ''}${hint}`;
       } else {
         result.failureReason = errMsg;
