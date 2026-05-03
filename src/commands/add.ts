@@ -385,12 +385,16 @@ Examples:
 
         // Track successful installs (fire and forget — dispatched to detached worker)
         if (result.installed.length > 0) {
+          // skillPath is 'SKILL.md' for root skills, or a directory like
+          // 'skills/foo' for sub-skills in a monorepo.
+          const skillRepoPath = skillPath === SKILL_FILENAME ? undefined : skillPath;
           trackInstall(
             'add',
             owner,
             repo,
             skillName,
             result.installed.map((i) => i.agent),
+            skillRepoPath,
           );
         }
       }

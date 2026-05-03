@@ -732,6 +732,7 @@ Examples:
           action.entry.repo,
           result.skillName,
           result.platform,
+          action.entry.path,
         );
         if (!jsonMode) {
           // Show which agents it was installed to if it's a partial install

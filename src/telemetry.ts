@@ -78,6 +78,9 @@ export function trackCommand(command: string): void {
  * @param repo GitHub repository name
  * @param skillName Name of the skill being installed
  * @param platform Names of the agents the skill was installed to (e.g. ['Claude Code', 'Cursor'])
+ * @param path Path to the skill within the repo. Undefined for root-level
+ *   skills (whole repo is one skill). For monorepos, this disambiguates
+ *   sibling skills (e.g. 'skills/council' vs 'skills/marketing').
  */
 export function trackInstall(
   command: string,
@@ -85,16 +88,25 @@ export function trackInstall(
   repo: string,
   skillName: string,
   platform: readonly string[] = [],
+  path?: string,
 ): void {
   if (!command || !owner || !repo || !skillName) return;
+  // Canonical skill key: 'owner/repo' for root skills, 'owner/repo/path'
+  // for skills nested in a monorepo. Without the path component, every
+  // skill in a monorepo collapses to the same key.
+  const normalizedPath = path?.trim().replace(/^\/+|\/+$/g, '') || undefined;
+  const skillKey = normalizedPath ? `${owner}/${repo}/${normalizedPath}` : `${owner}/${repo}`;
   dispatch({
     event_type: 'install',
     command,
-    skill_key: `${owner}/${repo}`,
+    skill_key: skillKey,
     // Fields for skill count increment
     owner,
     repo,
     skillName,
+    // Path within the repo (undefined for root skills). Lets the backend
+    // slice by path without re-parsing skill_key.
+    path: normalizedPath ?? null,
     // De-duplicated agent names the skill landed on. Maps to the `platform`
     // column on the telemetry_events table. Empty array if unknown.
     platform: Array.from(new Set(platform)),
