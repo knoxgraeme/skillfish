@@ -103,7 +103,7 @@ Examples:
     }
 
     // Track command usage (fire and forget)
-    void trackCommand('search');
+    trackCommand('search');
 
     // Show spinner while searching
     let response;

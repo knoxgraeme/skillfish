@@ -97,7 +97,7 @@ Examples:
     }
 
     // Track command usage (fire and forget)
-    void trackCommand('list');
+    trackCommand('list');
 
     // Determine which locations to check
     // By default, check both global and project. Flags narrow it down.

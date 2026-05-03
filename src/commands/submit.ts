@@ -99,7 +99,7 @@ Examples:
     }
 
     // Track command usage (fire and forget)
-    void trackCommand('submit');
+    trackCommand('submit');
 
     const skipConfirm = options.yes ?? false;
 

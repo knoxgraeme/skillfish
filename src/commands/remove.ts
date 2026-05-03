@@ -106,7 +106,7 @@ Examples:
     }
 
     // Track command usage (fire and forget)
-    void trackCommand('remove');
+    trackCommand('remove');
 
     const skipConfirm = options.yes ?? false;
     const removeAll = options.all ?? false;

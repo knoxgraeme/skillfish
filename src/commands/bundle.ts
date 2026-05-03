@@ -129,7 +129,7 @@ Examples:
     }
 
     // Track command usage (fire and forget)
-    void trackCommand('bundle');
+    trackCommand('bundle');
 
     // Determine scope (interactive if no flags specified)
     const { baseDir, location } = await selectBundleLocation(projectFlag, globalFlag, jsonMode);

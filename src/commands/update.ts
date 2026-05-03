@@ -97,7 +97,7 @@ Examples:
     }
 
     // Track command usage (fire and forget)
-    void trackCommand('update');
+    trackCommand('update');
 
     // Detect agents (check both global and project for updates)
     const detected = getDetectedAgentsForLocation('both', process.cwd());

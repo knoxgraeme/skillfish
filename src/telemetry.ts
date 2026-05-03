@@ -1,63 +1,80 @@
-const TELEMETRY_URL = 'https://mcpmarket.com/api/telemetry';
-
-/** Timeout for telemetry requests (ms) */
-const TELEMETRY_TIMEOUT = 5000;
-
 /**
- * Send a telemetry payload. Returns a promise that resolves when the request
- * completes (or times out). Never rejects.
+ * Anonymous CLI usage telemetry.
+ *
+ * Telemetry is dispatched to a detached child process (`telemetry-worker.js`)
+ * that owns the HTTP request and survives the parent's exit. This means:
+ *   - The CLI returns to the user immediately, never blocked by network I/O.
+ *   - `process.exit()` in command code does not abort the in-flight POST.
+ *
+ * Disabled when `DO_NOT_TRACK=1` or `CI=true`. Also disabled when the module
+ * is loaded from TypeScript source (dev/test via tsx) since the compiled
+ * worker only exists in `dist/`.
  */
-function sendTelemetry(payload: Record<string, unknown>): Promise<void> {
+
+import { spawn } from 'child_process';
+import { fileURLToPath } from 'url';
+
+function isTelemetryDisabled(): boolean {
+  return process.env.DO_NOT_TRACK === '1' || process.env.CI === 'true';
+}
+
+function dispatch(payload: Record<string, unknown>): void {
+  if (isTelemetryDisabled()) return;
+
+  // The worker only ships as a compiled .js artifact. When loaded from .ts
+  // source (tsx in dev/test), there is no worker to spawn — skip silently.
+  if (import.meta.url.endsWith('.ts')) return;
+
   try {
-    if (process.env.DO_NOT_TRACK === '1' || process.env.CI === 'true') {
-      return Promise.resolve();
-    }
+    const workerPath = fileURLToPath(new URL('./telemetry-worker.js', import.meta.url));
+    const child = spawn(process.execPath, [workerPath], {
+      detached: true,
+      stdio: ['pipe', 'ignore', 'ignore'],
+      windowsHide: true,
+    });
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), TELEMETRY_TIMEOUT);
+    // Swallow spawn errors (ENOENT, EPERM, etc.) — telemetry must not surface.
+    child.on('error', () => {});
 
-    return fetch(TELEMETRY_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    })
-      .then(() => {})
-      .catch(() => {})
-      .finally(() => clearTimeout(timeoutId));
+    // Detach from the parent's reference count so process.exit() doesn't wait.
+    child.unref();
+
+    // Small JSON payloads fit comfortably in the kernel pipe buffer, so this
+    // write completes synchronously and the child can read it after the parent
+    // exits.
+    child.stdin?.end(JSON.stringify(payload));
   } catch {
-    return Promise.resolve();
+    // ignore
   }
 }
 
 /**
- * Track a command execution. Fire and forget.
+ * Track a command execution. Fire-and-forget; returns immediately.
  *
  * @param command The command name (e.g., 'add', 'bundle', 'install')
- * @returns Promise that resolves when telemetry is sent (or times out)
  */
-export function trackCommand(command: string): Promise<void> {
-  if (!command) return Promise.resolve();
-  return sendTelemetry({ event_type: 'command', command });
+export function trackCommand(command: string): void {
+  if (!command) return;
+  dispatch({ event_type: 'command', command });
 }
 
 /**
- * Track a skill install. Inserts into telemetry_events and increments skill download count.
+ * Track a skill install. Fire-and-forget; returns immediately.
+ * Inserts into telemetry_events and increments skill download count.
  *
  * @param command The command that triggered the install ('add' or 'install')
  * @param owner GitHub repository owner
  * @param repo GitHub repository name
  * @param skillName Name of the skill being installed
- * @returns Promise that resolves when telemetry is sent (or times out)
  */
 export function trackInstall(
   command: string,
   owner: string,
   repo: string,
   skillName: string,
-): Promise<void> {
-  if (!command || !owner || !repo || !skillName) return Promise.resolve();
-  return sendTelemetry({
+): void {
+  if (!command || !owner || !repo || !skillName) return;
+  dispatch({
     event_type: 'install',
     command,
     skill_key: `${owner}/${repo}`,

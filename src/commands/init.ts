@@ -222,7 +222,7 @@ Examples:
     }
 
     // Track command usage (fire and forget)
-    void trackCommand('init');
+    trackCommand('init');
 
     const skipPrompts = options.yes ?? false;
     const projectFlag = options.project ?? false;
