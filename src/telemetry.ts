@@ -107,7 +107,7 @@ export function trackInstall(
     // Fields for skill count increment
     owner,
     repo,
-    skillName,
+    skill_name: skillName,
     platform: platformText,
   });
 }
