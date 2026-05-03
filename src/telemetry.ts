@@ -77,14 +77,14 @@ export function trackCommand(command: string): void {
  * @param owner GitHub repository owner
  * @param repo GitHub repository name
  * @param skillName Name of the skill being installed
- * @param agents Names of the agents the skill was installed to (e.g. ['Claude Code', 'Cursor'])
+ * @param platform Names of the agents the skill was installed to (e.g. ['Claude Code', 'Cursor'])
  */
 export function trackInstall(
   command: string,
   owner: string,
   repo: string,
   skillName: string,
-  agents: readonly string[] = [],
+  platform: readonly string[] = [],
 ): void {
   if (!command || !owner || !repo || !skillName) return;
   dispatch({
@@ -95,7 +95,8 @@ export function trackInstall(
     owner,
     repo,
     skillName,
-    // De-duplicated agent names the skill landed on. Empty array if unknown.
-    agents: Array.from(new Set(agents)),
+    // De-duplicated agent names the skill landed on. Maps to the `platform`
+    // column on the telemetry_events table. Empty array if unknown.
+    platform: Array.from(new Set(platform)),
   });
 }

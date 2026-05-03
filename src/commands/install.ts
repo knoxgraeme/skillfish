@@ -590,7 +590,7 @@ Examples:
       skillName: string;
       success: boolean;
       installCount: number;
-      agents: string[];
+      platform: string[];
       errorMsg?: string;
     }
 
@@ -651,7 +651,7 @@ Examples:
               skillName,
               success: false,
               installCount: 0,
-              agents: [],
+              platform: [],
               errorMsg: result.failureReason,
             };
           }
@@ -676,7 +676,7 @@ Examples:
             skillName,
             success: true,
             installCount: result.installed.length,
-            agents: result.installed.map((i) => i.agent),
+            platform: result.installed.map((i) => i.agent),
           };
         } catch (err) {
           let errorMsg: string;
@@ -700,7 +700,7 @@ Examples:
             skillName,
             success: false,
             installCount: 0,
-            agents: [],
+            platform: [],
             errorMsg,
           };
         }
@@ -731,7 +731,7 @@ Examples:
           action.entry.owner,
           action.entry.repo,
           result.skillName,
-          result.agents,
+          result.platform,
         );
         if (!jsonMode) {
           // Show which agents it was installed to if it's a partial install

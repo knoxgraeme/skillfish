@@ -406,7 +406,7 @@ Anonymous, aggregate usage data — no PII, no identifiers, no IP fingerprinting
 **What we send**
 
 - `command` events (one per CLI invocation): the subcommand name (`add`, `install`, `list`, etc.)
-- `install` events (one per successful skill install): the skill repo (`owner/repo`), the skill name, and the agent names it was installed to (e.g. `Claude Code`, `Cursor`)
+- `install` events (one per successful skill install): the skill repo (`owner/repo`), the skill name, and the platform names it was installed to (e.g. `Claude Code`, `Cursor`)
 
 That's it. No usernames, no machine IDs, no file paths, no skill contents.
 
