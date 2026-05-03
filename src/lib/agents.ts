@@ -95,6 +95,12 @@ export const AGENT_CONFIGS: readonly AgentConfig[] = [
     cwdPaths: ['.kiro'],
   },
   {
+    name: 'Kimi CLI',
+    dir: '.kimi/skills',
+    homePaths: ['.kimi/kimi.json', '.kimi/config.toml', '.kimi'],
+    cwdPaths: ['.kimi'],
+  },
+  {
     name: 'Kilo Code',
     dir: '.kilocode/skills',
     homePaths: ['.kilocode'],

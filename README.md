@@ -124,9 +124,9 @@ Skills can be pinned to a specific ref (tag, branch, or commit) using `@ref` syn
 
 ## Supported Agents
 
-Works with 32 agents including:
+Works with 33 agents including:
 
-**Claude Code** · **Cursor** · **Windsurf** · **Codex** · **GitHub Copilot** · **Gemini CLI** · **OpenCode** · **Goose** · **Amp** · **Roo Code** · **Kiro CLI** · **Kilo Code** · **Trae** · **Cline** · **Antigravity** · **Droid** · **Augment** · **OpenClaw** · **CodeBuddy** · **Command Code** · **Crush** · **Kode** · **Mistral Vibe** · **Mux** · **OpenClaude IDE** · **OpenHands** · **Qoder** · **Qwen Code** · **Replit** · **Trae CN** · **Neovate** · **AdaL**
+**Claude Code** · **Cursor** · **Windsurf** · **Codex** · **GitHub Copilot** · **Gemini CLI** · **OpenCode** · **Goose** · **Amp** · **Roo Code** · **Kiro CLI** · **Kimi CLI** · **Kilo Code** · **Trae** · **Cline** · **Antigravity** · **Droid** · **Augment** · **OpenClaw** · **CodeBuddy** · **Command Code** · **Crush** · **Kode** · **Mistral Vibe** · **Mux** · **OpenClaude IDE** · **OpenHands** · **Qoder** · **Qwen Code** · **Replit** · **Trae CN** · **Neovate** · **AdaL**
 
 <details>
 <summary>All supported agents</summary>
@@ -144,6 +144,7 @@ Works with 32 agents including:
 | Amp | `~/.agents/skills/` |
 | Roo Code | `~/.roo/skills/` |
 | Kiro CLI | `~/.kiro/skills/` |
+| Kimi CLI | `~/.kimi/skills/` |
 | Kilo Code | `~/.kilocode/skills/` |
 | Trae | `~/.trae/skills/` |
 | Cline | `~/.cline/skills/` |
