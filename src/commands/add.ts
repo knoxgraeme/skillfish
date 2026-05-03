@@ -295,6 +295,7 @@ Examples:
       // Install each selected skill
       let totalInstalled = 0;
       let totalSkipped = 0;
+      const telemetryPromises: Promise<void>[] = [];
 
       // SECURITY: Ask for confirmation before installation (unless --yes is used)
       // Single confirmation for all selected skills
@@ -383,11 +384,16 @@ Examples:
         totalInstalled += result.installed.length;
         totalSkipped += result.skipped.length;
 
-        // Track successful installs (fire and forget)
+        // Track successful installs - retain promise so we can flush before exit
         if (result.installed.length > 0) {
-          void trackInstall('add', owner, repo, skillName);
+          telemetryPromises.push(trackInstall('add', owner, repo, skillName));
         }
       }
+
+      // Flush install telemetry before exiting; sendTelemetry has its own 5s timeout
+      // so this can never hang. Without this await, process.exit() below aborts the
+      // in-flight POST and the skill_key payload never reaches the backend.
+      await Promise.allSettled(telemetryPromises);
 
       // Summary
       if (jsonMode) {

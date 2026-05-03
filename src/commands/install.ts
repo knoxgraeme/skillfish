@@ -714,6 +714,7 @@ Examples:
     // Process results and update counts (count skills, not installations)
     let successCount = 0;
     let failCount = 0;
+    const telemetryPromises: Promise<void>[] = [];
 
     for (let i = 0; i < installResults.length; i++) {
       const result = installResults[i];
@@ -721,8 +722,10 @@ Examples:
 
       if (result.success) {
         successCount++;
-        // Track successful installs (fire and forget)
-        void trackInstall('install', action.entry.owner, action.entry.repo, result.skillName);
+        // Track successful installs - retain promise so we can flush before exit
+        telemetryPromises.push(
+          trackInstall('install', action.entry.owner, action.entry.repo, result.skillName),
+        );
         if (!jsonMode) {
           // Show which agents it was installed to if it's a partial install
           const agentCount = action.targetAgents.length;
@@ -801,6 +804,11 @@ Examples:
         removeCount++;
       }
     }
+
+    // Flush install telemetry before exiting; sendTelemetry has its own 5s timeout
+    // so this can never hang. Without this await, process.exit() below aborts the
+    // in-flight POST and the skill_key payload never reaches the backend.
+    await Promise.allSettled(telemetryPromises);
 
     // Summary
     if (jsonMode) {
