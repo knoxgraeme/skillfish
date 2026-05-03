@@ -96,6 +96,10 @@ export function trackInstall(
   // skill in a monorepo collapses to the same key.
   const normalizedPath = path?.trim().replace(/^\/+|\/+$/g, '') || undefined;
   const skillKey = normalizedPath ? `${owner}/${repo}/${normalizedPath}` : `${owner}/${repo}`;
+  // platform is a single text column on telemetry_events. We send a
+  // comma-separated, de-duplicated list so one install stays one row
+  // (preserving download-count semantics). Agent names contain no commas.
+  const platformText = Array.from(new Set(platform)).join(', ');
   dispatch({
     event_type: 'install',
     command,
@@ -104,11 +108,6 @@ export function trackInstall(
     owner,
     repo,
     skillName,
-    // Path within the repo (undefined for root skills). Lets the backend
-    // slice by path without re-parsing skill_key.
-    path: normalizedPath ?? null,
-    // De-duplicated agent names the skill landed on. Maps to the `platform`
-    // column on the telemetry_events table. Empty array if unknown.
-    platform: Array.from(new Set(platform)),
+    platform: platformText,
   });
 }
