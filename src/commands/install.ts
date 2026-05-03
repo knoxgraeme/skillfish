@@ -590,6 +590,7 @@ Examples:
       skillName: string;
       success: boolean;
       installCount: number;
+      agents: string[];
       errorMsg?: string;
     }
 
@@ -650,6 +651,7 @@ Examples:
               skillName,
               success: false,
               installCount: 0,
+              agents: [],
               errorMsg: result.failureReason,
             };
           }
@@ -674,6 +676,7 @@ Examples:
             skillName,
             success: true,
             installCount: result.installed.length,
+            agents: result.installed.map((i) => i.agent),
           };
         } catch (err) {
           let errorMsg: string;
@@ -697,6 +700,7 @@ Examples:
             skillName,
             success: false,
             installCount: 0,
+            agents: [],
             errorMsg,
           };
         }
@@ -722,7 +726,13 @@ Examples:
       if (result.success) {
         successCount++;
         // Track successful installs (fire and forget — dispatched to detached worker)
-        trackInstall('install', action.entry.owner, action.entry.repo, result.skillName);
+        trackInstall(
+          'install',
+          action.entry.owner,
+          action.entry.repo,
+          result.skillName,
+          result.agents,
+        );
         if (!jsonMode) {
           // Show which agents it was installed to if it's a partial install
           const agentCount = action.targetAgents.length;

@@ -401,9 +401,29 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
 <details>
 <summary>Telemetry</summary>
 
-Anonymous, aggregate install counts only. No PII collected.
+Anonymous, aggregate usage data — no PII, no identifiers, no IP fingerprinting on our side.
 
-To opt out: `DO_NOT_TRACK=1` or `CI=true`.
+**What we send**
+
+- `command` events (one per CLI invocation): the subcommand name (`add`, `install`, `list`, etc.)
+- `install` events (one per successful skill install): the skill repo (`owner/repo`), the skill name, and the agent names it was installed to (e.g. `Claude Code`, `Cursor`)
+
+That's it. No usernames, no machine IDs, no file paths, no skill contents.
+
+**How to opt out**
+
+Set either env var to any non-falsy value:
+
+```bash
+export DO_NOT_TRACK=1   # https://consoledonottrack.com/
+export CI=true          # already set in most CI environments
+```
+
+Telemetry is also automatically disabled when running from source (e.g. `tsx`, `npm test`).
+
+**How it's sent**
+
+Each event is dispatched to a detached background process and the CLI returns immediately, so telemetry can never block your terminal. If our server is down or slow, your CLI still exits instantly.
 
 </details>
 

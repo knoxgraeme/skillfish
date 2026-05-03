@@ -14,8 +14,19 @@
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 
+/**
+ * Treat any non-empty value other than "0"/"false" as "disabled". This matches
+ * the de-facto behavior of the consoledonottrack.com convention used by other
+ * CLI tools — `DO_NOT_TRACK=true`, `DO_NOT_TRACK=yes`, etc. all disable.
+ */
+function isTruthyEnv(value: string | undefined): boolean {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized !== '' && normalized !== '0' && normalized !== 'false';
+}
+
 function isTelemetryDisabled(): boolean {
-  return process.env.DO_NOT_TRACK === '1' || process.env.CI === 'true';
+  return isTruthyEnv(process.env.DO_NOT_TRACK) || isTruthyEnv(process.env.CI);
 }
 
 function dispatch(payload: Record<string, unknown>): void {
@@ -66,12 +77,14 @@ export function trackCommand(command: string): void {
  * @param owner GitHub repository owner
  * @param repo GitHub repository name
  * @param skillName Name of the skill being installed
+ * @param agents Names of the agents the skill was installed to (e.g. ['Claude Code', 'Cursor'])
  */
 export function trackInstall(
   command: string,
   owner: string,
   repo: string,
   skillName: string,
+  agents: readonly string[] = [],
 ): void {
   if (!command || !owner || !repo || !skillName) return;
   dispatch({
@@ -82,5 +95,7 @@ export function trackInstall(
     owner,
     repo,
     skillName,
+    // De-duplicated agent names the skill landed on. Empty array if unknown.
+    agents: Array.from(new Set(agents)),
   });
 }

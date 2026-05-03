@@ -385,7 +385,13 @@ Examples:
 
         // Track successful installs (fire and forget — dispatched to detached worker)
         if (result.installed.length > 0) {
-          trackInstall('add', owner, repo, skillName);
+          trackInstall(
+            'add',
+            owner,
+            repo,
+            skillName,
+            result.installed.map((i) => i.agent),
+          );
         }
       }
 
