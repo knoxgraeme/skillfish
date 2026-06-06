@@ -229,6 +229,7 @@ Examples:
           skill: repo,
           reason: submission?.error ?? 'Unknown error',
         });
+        jsonOutput.success = false;
       }
     } catch (err) {
       if (spinner) {
@@ -249,7 +250,9 @@ Examples:
 
     // Summary
     if (jsonMode) {
-      outputJsonAndExit(EXIT_CODES.SUCCESS);
+      outputJsonAndExit(
+        jsonOutput.failed.length > 0 ? EXIT_CODES.NETWORK_ERROR : EXIT_CODES.SUCCESS,
+      );
     }
 
     if (jsonOutput.submitted.length > 0) {
@@ -257,11 +260,12 @@ Examples:
       p.outro(
         pc.green(`Submitted! ${skillCount} skill${skillCount === 1 ? '' : 's'} will be reviewed.`),
       );
+      process.exit(EXIT_CODES.SUCCESS);
     } else {
       const errorReason = jsonOutput.failed[0]?.reason ?? 'Submission failed';
       p.outro(pc.red(errorReason));
+      process.exit(EXIT_CODES.NETWORK_ERROR);
     }
-    process.exit(EXIT_CODES.SUCCESS);
   });
 
 // === Helper Functions ===
