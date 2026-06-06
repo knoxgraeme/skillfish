@@ -225,10 +225,12 @@ Examples:
         // Store found skill names for JSON output
         jsonOutput.skills_found = skills.map((s) => s.name);
       } else {
+        jsonOutput.success = false;
         jsonOutput.failed.push({
           skill: repo,
-          reason: submission?.error ?? 'Unknown error',
+          reason: submission?.error ?? result.errors[0] ?? 'Unknown error',
         });
+        jsonOutput.errors.push(...result.errors);
       }
     } catch (err) {
       if (spinner) {
@@ -248,8 +250,10 @@ Examples:
     }
 
     // Summary
+    const exitCode = jsonOutput.success ? EXIT_CODES.SUCCESS : EXIT_CODES.NETWORK_ERROR;
+
     if (jsonMode) {
-      outputJsonAndExit(EXIT_CODES.SUCCESS);
+      outputJsonAndExit(exitCode);
     }
 
     if (jsonOutput.submitted.length > 0) {
@@ -261,7 +265,7 @@ Examples:
       const errorReason = jsonOutput.failed[0]?.reason ?? 'Submission failed';
       p.outro(pc.red(errorReason));
     }
-    process.exit(EXIT_CODES.SUCCESS);
+    process.exit(exitCode);
   });
 
 // === Helper Functions ===
