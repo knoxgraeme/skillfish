@@ -85,6 +85,15 @@ export async function submitSkillsToRegistry(
         MAX_RETRIES,
       );
 
+      // Handle rate limiting before content-type check (429 body is often non-JSON)
+      if (res.status === 429) {
+        const retryAfter = res.headers.get('retry-after');
+        const hint = retryAfter
+          ? ` Try again in ${retryAfter} seconds.`
+          : ' Please try again later.';
+        throw new Error(`Registry rate limit exceeded (HTTP 429).${hint}`);
+      }
+
       // Validate Content-Type before parsing JSON
       const contentType = res.headers.get('content-type');
       if (!contentType?.includes('application/json')) {
@@ -216,6 +225,18 @@ export async function searchSkillsInRegistry(
       },
       MAX_RETRIES,
     );
+
+    // Handle rate limiting before content-type check (429 body is often non-JSON)
+    if (res.status === 429) {
+      const retryAfter = res.headers.get('retry-after');
+      const hint = retryAfter ? ` Try again in ${retryAfter} seconds.` : ' Please try again later.';
+      return {
+        success: false,
+        results: [],
+        totalCount: 0,
+        error: `Registry rate limit exceeded (HTTP 429).${hint}`,
+      };
+    }
 
     // Validate Content-Type before parsing JSON
     const contentType = res.headers.get('content-type');
