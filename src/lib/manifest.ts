@@ -42,9 +42,11 @@ export interface SkillManifest {
   version: 1 | 2;
   /** Installed directory name (added in v2, used for matching) */
   name?: string;
-  /** GitHub repository owner */
+  /** Git provider - defaults to 'github' for backwards compatibility */
+  provider?: string;
+  /** Repository owner (or namespace for GitLab) */
   owner: string;
-  /** GitHub repository name */
+  /** Repository name */
   repo: string;
   /** Path within repo (e.g., "skills/my-skill" or ".") - used for downloads */
   path: string;
@@ -219,6 +221,16 @@ export function healManifest(skillDir: string): SkillManifest | null {
       sha: data.sha,
     };
 
+    // Preserve provider if valid
+    if (
+      typeof data.provider === 'string' &&
+      data.provider.length > 0 &&
+      data.provider.length <= 64 &&
+      /^[\w.-]+$/.test(data.provider)
+    ) {
+      healed.provider = data.provider;
+    }
+
     // Validate and preserve ref if valid
     if (typeof data.ref === 'string') {
       if (REF_PATTERN.test(data.ref) && data.ref.length <= MAX_REF_LENGTH) {
@@ -277,6 +289,16 @@ function isValidManifest(data: unknown): data is SkillManifest {
   }
   // name is optional in v1, but if present must be valid
   if (obj.name !== undefined && (typeof obj.name !== 'string' || !isValidName(obj.name))) {
+    return false;
+  }
+  // provider is optional; if present must be a non-empty string of safe characters
+  if (
+    obj.provider !== undefined &&
+    (typeof obj.provider !== 'string' ||
+      obj.provider.length === 0 ||
+      obj.provider.length > 64 ||
+      !/^[\w.-]+$/.test(obj.provider))
+  ) {
     return false;
   }
 

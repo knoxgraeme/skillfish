@@ -123,8 +123,17 @@ Examples:
     const manifestSkills = allTrackedSkills.filter(
       (s) => (s.manifest.source ?? 'manual') === 'manifest',
     );
+    // Filter out non-GitHub skills (update checking via GitHub API is not available for them)
+    const nonGithubSkills = allTrackedSkills.filter(
+      (s) =>
+        (s.manifest.source ?? 'manual') !== 'manifest' &&
+        s.manifest.provider !== undefined &&
+        s.manifest.provider !== 'github',
+    );
     const trackedSkills = allTrackedSkills.filter(
-      (s) => (s.manifest.source ?? 'manual') !== 'manifest',
+      (s) =>
+        (s.manifest.source ?? 'manual') !== 'manifest' &&
+        (s.manifest.provider === undefined || s.manifest.provider === 'github'),
     );
 
     // Report skipped manifest skills
@@ -152,11 +161,21 @@ Examples:
         );
       }
 
+      // Show non-GitHub skills message if any
+      if (nonGithubSkills.length > 0 && !jsonMode) {
+        console.log();
+        p.log.info(
+          pc.dim(
+            `${nonGithubSkills.length} skill${nonGithubSkills.length === 1 ? '' : 's'} from non-GitHub providers - reinstall with ${pc.cyan('skillfish add')} to update.`,
+          ),
+        );
+      }
+
       if (jsonMode) {
         outputJsonAndExit(EXIT_CODES.SUCCESS);
       }
 
-      if (manifestSkills.length === 0) {
+      if (manifestSkills.length === 0 && nonGithubSkills.length === 0) {
         console.log();
         p.log.info(pc.dim("Skills installed before this version don't have tracking info."));
         p.log.info(pc.dim('Reinstall skills with `skillfish add` to enable updates.'));
@@ -213,6 +232,16 @@ Examples:
         p.log.info(
           pc.dim(
             `${manifestSkills.length} skill${manifestSkills.length === 1 ? '' : 's'} controlled by manifest - update ${pc.cyan('skillfish.json')} and run ${pc.cyan('skillfish install')} instead.`,
+          ),
+        );
+      }
+
+      // Show non-GitHub skills message if any
+      if (nonGithubSkills.length > 0 && !jsonMode) {
+        console.log();
+        p.log.info(
+          pc.dim(
+            `${nonGithubSkills.length} skill${nonGithubSkills.length === 1 ? '' : 's'} from non-GitHub providers - reinstall with ${pc.cyan('skillfish add')} to update.`,
           ),
         );
       }
@@ -294,6 +323,7 @@ Examples:
               sha: skill.remoteSha,
               ref: skill.manifest.ref,
               source: skill.manifest.source ?? 'manual',
+              provider: skill.manifest.provider,
             },
           );
 

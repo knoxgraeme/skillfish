@@ -39,6 +39,8 @@ export interface InstallOptions {
   ref?: string;
   /** How the skill was installed - defaults to 'manual' */
   source?: SkillSource;
+  /** Git provider (e.g. 'github', 'gitlab', 'bitbucket'). Defaults to 'github'. */
+  provider?: string;
 }
 
 /**
@@ -150,18 +152,21 @@ export async function installSkill(
     failed: false,
   };
 
-  const { force, baseDir, branch, sha, ref, source } = options;
+  const { force, baseDir, branch, sha, ref, source, provider } = options;
+
+  // Determine giget provider prefix; default to 'github' for backwards compatibility
+  const gigetProvider = provider && provider !== 'github' ? provider : 'github';
 
   const tmpDir = join(homedir(), '.cache', 'skillfish', `${owner}-${repo}-${randomUUID()}`);
   mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
 
   try {
     // Download skill using giget (tarball-based, works reliably on all repo sizes)
-    // Build giget source: github:owner/repo[/subpath][#branch]
+    // Build giget source: <provider>:owner/repo[/subpath][#branch]
     const downloadPath = skillPath === SKILL_FILENAME || skillPath === '.' ? '' : skillPath;
     let gigetSource = downloadPath
-      ? `github:${owner}/${repo}/${downloadPath}`
-      : `github:${owner}/${repo}`;
+      ? `${gigetProvider}:${owner}/${repo}/${downloadPath}`
+      : `${gigetProvider}:${owner}/${repo}`;
 
     // Append branch if specified (critical for repos with non-standard default branches like 'canary')
     // Validate branch name to prevent injection attacks via malformed branch names
@@ -172,7 +177,8 @@ export async function installSkill(
       gigetSource = `${gigetSource}#${branch}`;
     }
 
-    const githubToken = getGitHubToken();
+    // Only pass GitHub auth token for GitHub provider; other providers are public-only in v1
+    const githubToken = gigetProvider === 'github' ? getGitHubToken() : null;
     await downloadTemplate(gigetSource, {
       dir: tmpDir,
       forceClean: true,
@@ -252,6 +258,7 @@ export async function installSkill(
               sha,
               ref: ref,
               source: source as SkillSource | undefined,
+              ...(gigetProvider !== 'github' ? { provider: gigetProvider } : {}),
             };
             writeManifest(destDir, manifest);
           } catch (manifestErr) {
@@ -310,9 +317,12 @@ export async function installSkill(
       const errMsg = err instanceof Error ? err.message : String(err);
       // Provide more helpful error messages for common failures
       if (errMsg.includes('404') || errMsg.includes('Not Found')) {
-        const hint = hasGitHubToken()
-          ? ''
-          : ' (set GITHUB_TOKEN if this is a private repository, or run `gh auth login`)';
+        const hint =
+          gigetProvider === 'github'
+            ? hasGitHubToken()
+              ? ''
+              : ' (set GITHUB_TOKEN if this is a private repository, or run `gh auth login`)'
+            : ` (only public ${gigetProvider} repositories are supported)`;
         result.failureReason = `Repository or path not found: ${owner}/${repo}${skillPath !== SKILL_FILENAME ? `/${skillPath}` : ''}${hint}`;
       } else {
         result.failureReason = errMsg;

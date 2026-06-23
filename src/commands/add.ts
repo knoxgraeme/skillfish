@@ -42,6 +42,7 @@ import {
 } from '../lib/github.js';
 import type { GitTreeItem } from '../utils.js';
 import { installSkill } from '../lib/installer.js';
+import { fetchWithRetry } from '../lib/http.js';
 import { EXIT_CODES, isValidName, type ExitCode } from '../lib/constants.js';
 
 // === Types ===
@@ -55,6 +56,52 @@ interface AddCommandOptions {
   path?: string;
 }
 
+interface ParsedProviderUrl {
+  provider: string;
+  host: string;
+  owner: string;
+  repo: string;
+  subPath?: string;
+}
+
+/**
+ * Maps known public Git hosting hostnames to their giget provider prefix.
+ * Only includes providers with built-in giget support (github, gh, gitlab, bitbucket, sourcehut).
+ */
+const URL_PROVIDERS: Record<string, string> = {
+  'github.com': 'github',
+  'gitlab.com': 'gitlab',
+  'bitbucket.org': 'bitbucket',
+};
+
+/**
+ * Parse a full URL like https://gitlab.com/owner/repo[/subpath] into provider components.
+ * Returns null if the URL is not recognised or malformed.
+ */
+function parseProviderUrl(input: string): ParsedProviderUrl | null {
+  let url: URL;
+  try {
+    url = new URL(input);
+  } catch {
+    return null;
+  }
+
+  const provider = URL_PROVIDERS[url.hostname];
+  if (!provider) return null;
+
+  const parts = url.pathname.split('/').filter(Boolean);
+  if (parts.length < 2) return null;
+
+  const [owner, repo, ...rest] = parts;
+  return {
+    provider,
+    host: url.hostname,
+    owner,
+    repo,
+    subPath: rest.length > 0 ? rest.join('/') : undefined,
+  };
+}
+
 interface SkillMetadata {
   path: string; // Full path to SKILL.md
   dir: string; // Directory containing SKILL.md
@@ -65,8 +112,11 @@ interface SkillMetadata {
 // === Command Definition ===
 
 export const addCommand = new Command('add')
-  .description('Install a skill from a GitHub repository')
-  .argument('<repo>', 'GitHub repository (owner/repo or owner/repo/plugin/skill)')
+  .description('Install a skill from a Git repository')
+  .argument(
+    '<repo>',
+    'Repository as owner/repo, owner/repo/path, or full URL (github.com, gitlab.com, bitbucket.org)',
+  )
   .argument('[skill-name]', 'Install a specific skill by name (from SKILL.md frontmatter)')
   .option('--force', 'Overwrite existing skills without prompting')
   .option('-y, --yes', 'Skip all confirmation prompts')
@@ -79,12 +129,14 @@ export const addCommand = new Command('add')
     'after',
     `
 Examples:
-  $ skillfish add owner/repo                  Install from a repository
-  $ skillfish add owner/repo my-skill         Install skill by name
-  $ skillfish add owner/repo --all            Install all skills in repo
-  $ skillfish add owner/repo/plugin/skill     Install a specific skill by path
-  $ skillfish add owner/repo --path path/to   Install skill at specific path
-  $ skillfish add owner/repo --project        Install to current project only`,
+  $ skillfish add owner/repo                         Install from GitHub (shorthand)
+  $ skillfish add owner/repo my-skill                Install skill by name
+  $ skillfish add owner/repo --all                   Install all skills in repo
+  $ skillfish add owner/repo/plugin/skill            Install a specific skill by path
+  $ skillfish add owner/repo --path path/to          Install skill at specific path
+  $ skillfish add owner/repo --project               Install to current project only
+  $ skillfish add https://gitlab.com/owner/repo      Install from GitLab
+  $ skillfish add https://bitbucket.org/owner/repo   Install from Bitbucket`,
   )
   .action(
     async (
@@ -162,41 +214,74 @@ Examples:
         }
       }
 
-      // Parse repo format - supports owner/repo and owner/repo/path/to/skill
-      const parts = repoArg.split('/');
+      // Detect full URL input (https://gitlab.com/owner/repo, etc.)
+      let provider: string = 'github';
+      let repoHost: string = 'github.com';
       let owner: string;
       let repo: string;
 
-      if (parts.length < 2) {
-        exitWithError(
-          'Invalid format. Use: owner/repo or owner/repo/path/to/skill',
-          EXIT_CODES.INVALID_ARGS,
-        );
-      }
-
-      [owner, repo] = parts as [string, string];
-
-      // If path components exist after owner/repo, use them as the skill path
-      if (parts.length > 2) {
-        const pathParts = parts.slice(2);
-        // Security: validate each path component
-        for (const part of pathParts) {
-          if (!isValidName(part)) {
-            exitWithError(
-              'Invalid path component. Use only alphanumeric characters, dots, hyphens, and underscores.',
-              EXIT_CODES.INVALID_ARGS,
-            );
+      const isUrl = repoArg.startsWith('https://') || repoArg.startsWith('http://');
+      if (isUrl) {
+        const parsed = parseProviderUrl(repoArg);
+        if (!parsed) {
+          exitWithError(
+            'Unsupported URL. Supported hosts: github.com, gitlab.com, bitbucket.org',
+            EXIT_CODES.INVALID_ARGS,
+          );
+        }
+        provider = parsed.provider;
+        repoHost = parsed.host;
+        owner = parsed.owner;
+        repo = parsed.repo;
+        // Treat URL sub-path (e.g. /owner/repo/path/to/skill) as explicit path
+        if (parsed.subPath && !explicitPath) {
+          explicitPath = parsed.subPath;
+          if (!jsonMode) {
+            console.log(`Installing skill from: ${explicitPath}`);
           }
         }
-        explicitPath = explicitPath || pathParts.join('/');
-        if (!jsonMode) {
-          console.log(`Installing skill from: ${explicitPath}`);
+        // Validate owner/repo extracted from URL
+        if (!isValidName(owner) || !isValidName(repo)) {
+          exitWithError(
+            'Invalid repository in URL. Owner and repo must contain only safe characters.',
+            EXIT_CODES.INVALID_ARGS,
+          );
         }
-      }
+      } else {
+        // Parse repo format - supports owner/repo and owner/repo/path/to/skill
+        const parts = repoArg.split('/');
 
-      // Validate owner/repo (security: prevent injection)
-      if (!owner || !repo || !isValidName(owner) || !isValidName(repo)) {
-        exitWithError('Invalid repository format. Use: owner/repo', EXIT_CODES.INVALID_ARGS);
+        if (parts.length < 2) {
+          exitWithError(
+            'Invalid format. Use: owner/repo or owner/repo/path/to/skill',
+            EXIT_CODES.INVALID_ARGS,
+          );
+        }
+
+        [owner, repo] = parts as [string, string];
+
+        // If path components exist after owner/repo, use them as the skill path
+        if (parts.length > 2) {
+          const pathParts = parts.slice(2);
+          // Security: validate each path component
+          for (const part of pathParts) {
+            if (!isValidName(part)) {
+              exitWithError(
+                'Invalid path component. Use only alphanumeric characters, dots, hyphens, and underscores.',
+                EXIT_CODES.INVALID_ARGS,
+              );
+            }
+          }
+          explicitPath = explicitPath || pathParts.join('/');
+          if (!jsonMode) {
+            console.log(`Installing skill from: ${explicitPath}`);
+          }
+        }
+
+        // Validate owner/repo (security: prevent injection)
+        if (!owner || !repo || !isValidName(owner) || !isValidName(repo)) {
+          exitWithError('Invalid repository format. Use: owner/repo', EXIT_CODES.INVALID_ARGS);
+        }
       }
 
       // 1. Discover or select skills
@@ -206,8 +291,22 @@ Examples:
         sha: string | undefined;
         tree: GitTreeItem[];
       } | null;
-      if (explicitPath) {
-        // For explicit paths, we still need to fetch the default branch and SHA for tracking
+
+      if (provider !== 'github') {
+        // For non-GitHub providers, the GitHub tree API is unavailable.
+        // Install from the explicit path, or fall back to the root SKILL.md.
+        const skillPath = explicitPath ?? SKILL_FILENAME;
+        if (!explicitPath && !jsonMode) {
+          p.log.info(
+            `Skill discovery is not available for ${repoHost}. Installing root skill. Use --path to target a specific skill.`,
+          );
+        }
+        // Fetch the actual default branch so repos whose default is not 'main' don't 404.
+        // giget defaults to 'main' when no ref is given, which breaks e.g. 'master' repos.
+        const defaultBranch = await fetchProviderDefaultBranch(provider, owner, repo);
+        discoveryResult = { paths: [skillPath], branch: defaultBranch, sha: undefined, tree: [] };
+      } else if (explicitPath) {
+        // For explicit paths on GitHub, we still need to fetch the default branch and SHA for tracking
         try {
           const branch = await fetchDefaultBranch(owner, repo);
           // Fetch tree SHA for manifest tracking
@@ -300,7 +399,7 @@ Examples:
       // Single confirmation for all selected skills
       if (!trustSource && !jsonMode && isInputTTY()) {
         const skillNames = skillPaths.map((sp) => deriveSkillName(sp, repo));
-        const shouldInstall = await confirmInstallBatch(owner, repo, skillNames);
+        const shouldInstall = await confirmInstallBatch(owner, repo, skillNames, repoHost);
         if (!shouldInstall) {
           for (const skillName of skillNames) {
             p.log.warn(`Skipped ${pc.bold(skillName)} (not confirmed)`);
@@ -334,6 +433,7 @@ Examples:
           branch: discoveredBranch,
           sha: skillSha,
           source: 'manual',
+          provider: provider !== 'github' ? provider : undefined,
         });
 
         if (spinner) {
@@ -739,10 +839,11 @@ async function confirmInstallBatch(
   owner: string,
   repo: string,
   skillNames: string[],
+  host: string = 'github.com',
 ): Promise<boolean> {
   console.log();
   p.log.warn(pc.yellow('Skills can instruct AI agents to perform actions on your behalf.'));
-  console.log(pc.dim(`  Source: github.com/${owner}/${repo}`));
+  console.log(pc.dim(`  Source: ${host}/${owner}/${repo}`));
   console.log(pc.dim('  Use --yes to skip this prompt for trusted sources.'));
 
   if (skillNames.length > 1) {
@@ -760,7 +861,7 @@ async function confirmInstallBatch(
       : `${pc.bold(skillNames.length.toString())} skills`;
 
   const proceed = await p.confirm({
-    message: `Install ${skillLabel} from ${pc.cyan(`${owner}/${repo}`)}?`,
+    message: `Install ${skillLabel} from ${pc.cyan(`${host}/${owner}/${repo}`)}?`,
     initialValue: true,
   });
 
@@ -769,4 +870,39 @@ async function confirmInstallBatch(
   }
 
   return proceed;
+}
+
+/**
+ * Fetch the default branch for a non-GitHub provider.
+ * giget defaults to 'main' when no ref is given, which breaks public repos
+ * whose default branch is 'master' or another name.
+ *
+ * Returns undefined on any failure; giget will then fall back to 'main'.
+ */
+async function fetchProviderDefaultBranch(
+  provider: string,
+  owner: string,
+  repo: string,
+): Promise<string | undefined> {
+  const headers = { 'User-Agent': 'skillfish' };
+  try {
+    if (provider === 'gitlab') {
+      const projectPath = encodeURIComponent(`${owner}/${repo}`);
+      const url = `https://gitlab.com/api/v4/projects/${projectPath}`;
+      const res = await fetchWithRetry(url, { headers }, 2);
+      if (!res.ok) return undefined;
+      const data = (await res.json()) as { default_branch?: string };
+      return typeof data.default_branch === 'string' ? data.default_branch : undefined;
+    }
+    if (provider === 'bitbucket') {
+      const url = `https://api.bitbucket.org/2.0/repositories/${owner}/${repo}`;
+      const res = await fetchWithRetry(url, { headers }, 2);
+      if (!res.ok) return undefined;
+      const data = (await res.json()) as { mainbranch?: { name?: string } };
+      return typeof data.mainbranch?.name === 'string' ? data.mainbranch.name : undefined;
+    }
+  } catch {
+    // Network failure or timeout - let giget use its default
+  }
+  return undefined;
 }

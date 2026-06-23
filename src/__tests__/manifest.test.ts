@@ -564,6 +564,124 @@ describe('manifest', () => {
     });
   });
 
+  describe('provider field', () => {
+    it('reads manifest with provider field', () => {
+      const manifest = {
+        version: MANIFEST_VERSION,
+        name: 'test-skill',
+        provider: 'gitlab',
+        owner: 'test-owner',
+        repo: 'test-repo',
+        path: '.',
+        branch: 'main',
+        sha: 'fc6274d15fa3ae2ab983129fb037999f264ba9a7',
+      };
+
+      writeFileSync(join(testDir, MANIFEST_FILENAME), JSON.stringify(manifest));
+
+      const result = readManifest(testDir);
+
+      expect(result).not.toBeNull();
+      expect(result!.provider).toBe('gitlab');
+    });
+
+    it('reads manifest without provider field (backwards compatible)', () => {
+      const manifest = {
+        version: MANIFEST_VERSION,
+        name: 'test-skill',
+        owner: 'test-owner',
+        repo: 'test-repo',
+        path: '.',
+        branch: 'main',
+        sha: 'fc6274d15fa3ae2ab983129fb037999f264ba9a7',
+      };
+
+      writeFileSync(join(testDir, MANIFEST_FILENAME), JSON.stringify(manifest));
+
+      const result = readManifest(testDir);
+
+      expect(result).not.toBeNull();
+      expect(result!.provider).toBeUndefined();
+    });
+
+    it('rejects manifest with invalid provider value', () => {
+      const manifest = {
+        version: MANIFEST_VERSION,
+        name: 'test-skill',
+        provider: 'gitlab; rm -rf /', // contains spaces and shell metacharacters
+        owner: 'test-owner',
+        repo: 'test-repo',
+        path: '.',
+        branch: 'main',
+        sha: 'fc6274d15fa3ae2ab983129fb037999f264ba9a7',
+      };
+
+      writeFileSync(join(testDir, MANIFEST_FILENAME), JSON.stringify(manifest));
+
+      const result = readManifest(testDir);
+
+      expect(result).toBeNull();
+    });
+
+    it('healManifest preserves provider field', () => {
+      const manifest = {
+        version: 1,
+        provider: 'gitlab',
+        owner: 'test-owner',
+        repo: 'test-repo',
+        path: '.',
+        branch: 'main',
+        sha: 'fc6274d15fa3ae2ab983129fb037999f264ba9a7',
+      };
+
+      writeFileSync(join(testDir, MANIFEST_FILENAME), JSON.stringify(manifest));
+
+      const result = healManifest(testDir);
+
+      expect(result).not.toBeNull();
+      expect(result!.provider).toBe('gitlab');
+    });
+
+    it('healManifest drops invalid provider field', () => {
+      const manifest = {
+        version: 1,
+        provider: 'gitlab; rm -rf /',
+        owner: 'test-owner',
+        repo: 'test-repo',
+        path: '.',
+        branch: 'main',
+        sha: 'fc6274d15fa3ae2ab983129fb037999f264ba9a7',
+      };
+
+      writeFileSync(join(testDir, MANIFEST_FILENAME), JSON.stringify(manifest));
+
+      const result = healManifest(testDir);
+
+      expect(result).not.toBeNull();
+      expect(result!.provider).toBeUndefined();
+    });
+
+    it('writeManifest round-trips provider field', () => {
+      const manifest: SkillManifest = {
+        version: MANIFEST_VERSION,
+        name: 'test-skill',
+        provider: 'bitbucket',
+        owner: 'test-owner',
+        repo: 'test-repo',
+        path: '.',
+        branch: 'main',
+        sha: 'fc6274d15fa3ae2ab983129fb037999f264ba9a7',
+      };
+
+      writeManifest(testDir, manifest);
+
+      const result = readManifest(testDir);
+
+      expect(result).not.toBeNull();
+      expect(result!.provider).toBe('bitbucket');
+    });
+  });
+
   describe('key matching between entry and manifest', () => {
     // These tests verify that keys built from parsed skillfish.json entries
     // match keys built from per-skill manifests - critical for removal logic
