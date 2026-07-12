@@ -52,6 +52,14 @@ describe('agents.ts', () => {
       }
     });
 
+    it('includes Hermes Agent', () => {
+      const hermes = AGENT_CONFIGS.find((c) => c.name === 'Hermes Agent');
+      expect(hermes).toBeDefined();
+      expect(hermes?.dir).toContain('skills');
+      expect(hermes?.homePaths).toContain(hermes?.dir.replace(/[/\\]skills$/, ''));
+      expect(hermes?.cwdPaths).toEqual([]);
+    });
+
     it('includes Claude Code agent', () => {
       const claude = AGENT_CONFIGS.find((c) => c.name === 'Claude Code');
       expect(claude).toBeDefined();
