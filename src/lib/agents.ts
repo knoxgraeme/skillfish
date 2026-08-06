@@ -264,6 +264,11 @@ export interface Agent {
   readonly detect: () => boolean;
 }
 
+export interface ResolvedAgents {
+  readonly agents: readonly Agent[];
+  readonly unknownNames: readonly string[];
+}
+
 /**
  * Location context for agent detection.
  */
@@ -296,6 +301,39 @@ export function getDetectedAgentsForLocation(
     ...(config.globalDir && { globalDir: config.globalDir }),
     detect: () => detectAgent(config, cwd),
   }));
+}
+
+/**
+ * Resolve user-provided agent names against a detected agent list.
+ * Matching is case-insensitive and repeated names are returned only once.
+ */
+export function resolveRequestedAgents(
+  detectedAgents: readonly Agent[],
+  requestedNames: readonly string[],
+): ResolvedAgents {
+  const detectedByName = new Map(
+    detectedAgents.map((agent) => [agent.name.toLowerCase(), agent] as const),
+  );
+  const agents: Agent[] = [];
+  const unknownNames: string[] = [];
+  const seenNames = new Set<string>();
+
+  for (const requestedName of requestedNames) {
+    const normalizedName = requestedName.toLowerCase();
+    if (seenNames.has(normalizedName)) {
+      continue;
+    }
+    seenNames.add(normalizedName);
+
+    const agent = detectedByName.get(normalizedName);
+    if (agent) {
+      agents.push(agent);
+    } else {
+      unknownNames.push(requestedName);
+    }
+  }
+
+  return { agents, unknownNames };
 }
 
 /**

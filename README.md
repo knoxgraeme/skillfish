@@ -187,6 +187,8 @@ skillfish add owner/repo --force            # Overwrite existing
 skillfish add owner/repo --yes              # Skip confirmation
 skillfish add owner/repo --project          # Project only (./)
 skillfish add owner/repo --global           # Global only (~/)
+skillfish add owner/repo --agent Cursor     # Install to one detected agent
+skillfish add owner/repo --agent Cursor --agent Codex  # Install to multiple agents
 ```
 
 ### init
@@ -324,7 +326,7 @@ In non-interactive mode, commands use default values where possible and error wi
 
 | Command | Required | Defaults |
 |---------|----------|----------|
-| `add` | `<owner/repo>` + skill name, `--path`, or `--all` if repo has multiple skills | Location: global (`~/`), Agents: all detected |
+| `add` | `<owner/repo>` + skill name, `--path`, or `--all` if repo has multiple skills | Location: global (`~/`), Agents: all detected unless one or more `--agent` flags are passed |
 | `init` | `--name`, `--description` | Location: project (`./`), Agents: all detected |
 | `list` | (none) | Both locations, all agents |
 | `remove` | Skill name or `--all` | Both locations, all agents |
@@ -371,6 +373,9 @@ Exit codes are consistent across all commands:
 ```bash
 # Install skills in CI (non-interactive, JSON output)
 skillfish add owner/repo --yes --json
+
+# Install to specific detected agents (repeat --agent as needed)
+skillfish add owner/repo --agent "Claude Code" --agent Cursor --yes --json
 
 # Create a skill template in CI
 skillfish init --name my-skill --description "My skill" --project --json
