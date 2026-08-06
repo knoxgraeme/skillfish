@@ -5,7 +5,7 @@
 
 import { existsSync } from 'fs';
 import { homedir } from 'os';
-import { join } from 'path';
+import { join, relative } from 'path';
 
 /**
  * Agent configuration - data-driven for easier maintenance.
@@ -19,7 +19,22 @@ export interface AgentConfig {
   readonly cwdPaths: readonly string[]; // Paths to check in ./
 }
 
+const HOME_DIR = homedir();
+const HERMES_HOME_REL =
+  process.env.HERMES_HOME && HOME_DIR ? relative(HOME_DIR, process.env.HERMES_HOME) : '.hermes';
+
 export const AGENT_CONFIGS: readonly AgentConfig[] = [
+  // === Hermes Agent ===
+  {
+    name: 'Hermes Agent',
+    dir: join(HERMES_HOME_REL, 'skills'),
+    homePaths: [
+      HERMES_HOME_REL,
+      join(HERMES_HOME_REL, 'config.yaml'),
+      join(HERMES_HOME_REL, 'hermes-agent'),
+    ],
+    cwdPaths: [],
+  },
   // === Primary Agents (widely used) ===
   {
     name: 'Claude Code',
