@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { invokeCli } from './invoke-cli.js';
+import { addCommand } from '../commands/add.js';
 
 describe('add command', () => {
   it('shows help with --help', () => {
@@ -13,12 +14,19 @@ describe('add command', () => {
     expect(stdout).toContain('--force');
     expect(stdout).toContain('--yes');
     expect(stdout).toContain('--all');
+    expect(stdout).toContain('--agent');
   });
 
   it('requires a repository argument', () => {
     const { exitCode, stderr } = invokeCli(['add']);
     expect(exitCode).not.toBe(0);
     expect(stderr).toContain("required argument 'repo'");
+  });
+
+  it('collects repeated --agent flags', () => {
+    addCommand.parseOptions(['owner/repo', '--agent', 'Claude Code', '--agent', 'Cursor']);
+
+    expect(addCommand.opts().agent).toEqual(['Claude Code', 'Cursor']);
   });
 
   it('exits with error for invalid repo format (single part)', () => {

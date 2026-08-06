@@ -23,6 +23,7 @@ import {
 } from '../utils.js';
 import {
   getDetectedAgentsForLocation,
+  resolveRequestedAgents,
   type Agent,
   type DetectionLocation,
   AGENT_CONFIGS,
@@ -53,6 +54,7 @@ interface AddCommandOptions {
   project?: boolean;
   global?: boolean;
   path?: string;
+  agent?: string[];
 }
 
 interface SkillMetadata {
@@ -60,6 +62,10 @@ interface SkillMetadata {
   dir: string; // Directory containing SKILL.md
   name: string; // From frontmatter or folder name
   description: string; // From frontmatter or empty
+}
+
+function collectAgentName(value: string, previous?: string[]): string[] {
+  return [...(previous ?? []), value];
 }
 
 // === Command Definition ===
@@ -74,6 +80,7 @@ export const addCommand = new Command('add')
   .option('--project', 'Install to current project (./.claude)')
   .option('--global', 'Install to home directory (~/.claude)')
   .option('--path <path>', 'Path to a specific skill in the repository')
+  .option('--agent <name>', 'Install to a specific detected agent (repeatable)', collectAgentName)
   .helpOption('-h, --help', 'Display help for command')
   .addHelpText(
     'after',
@@ -84,7 +91,9 @@ Examples:
   $ skillfish add owner/repo --all            Install all skills in repo
   $ skillfish add owner/repo/plugin/skill     Install a specific skill by path
   $ skillfish add owner/repo --path path/to   Install skill at specific path
-  $ skillfish add owner/repo --project        Install to current project only`,
+  $ skillfish add owner/repo --project        Install to current project only
+  $ skillfish add owner/repo --agent Cursor   Install to Cursor only
+  $ skillfish add owner/repo --agent Cursor --agent Codex  Install to multiple agents`,
   )
   .action(
     async (
@@ -142,6 +151,7 @@ Examples:
       const installAll = options.all ?? false;
       const projectFlag = options.project ?? false;
       const globalFlag = options.global ?? false;
+      const requestedAgentNames = options.agent ?? [];
       let explicitPath: string | null = options.path ?? null;
 
       // Validate flag conflicts
@@ -279,7 +289,25 @@ Examples:
 
       let targetAgents: readonly Agent[];
 
-      if (!isInputTTY() || jsonMode) {
+      if (requestedAgentNames.length > 0) {
+        const { agents, unknownNames } = resolveRequestedAgents(detected, requestedAgentNames);
+
+        if (unknownNames.length > 0) {
+          const noun = unknownNames.length === 1 ? 'Agent' : 'Agents';
+          exitWithError(
+            `${noun} not found: ${unknownNames.map((name) => `"${name}"`).join(', ')}. Detected agents: ${detected.map((agent) => agent.name).join(', ')}`,
+            EXIT_CODES.NOT_FOUND,
+            true,
+          );
+        }
+
+        targetAgents = agents;
+        if (!jsonMode) {
+          console.log(
+            `Installing to ${targetAgents.length} agent(s): ${targetAgents.map((agent) => agent.name).join(', ')}`,
+          );
+        }
+      } else if (!isInputTTY() || jsonMode) {
         // Non-TTY or JSON mode: use all detected agents
         if (!jsonMode) {
           console.log(

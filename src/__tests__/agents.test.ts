@@ -12,6 +12,8 @@ import {
   detectAgentInProject,
   getDetectedAgentsForLocation,
   getAgentSkillDir,
+  resolveRequestedAgents,
+  type Agent,
   type AgentConfig,
 } from '../lib/agents.js';
 
@@ -266,6 +268,35 @@ describe('agents.ts', () => {
       const agent = { name: 'Cursor', dir: '.cursor/skills', detect: () => true };
 
       expect(getAgentSkillDir(agent, '/project')).toBe('/project/.cursor/skills');
+    });
+  });
+
+  describe('resolveRequestedAgents', () => {
+    const agents: readonly Agent[] = [
+      { name: 'Claude Code', dir: '.claude/skills', detect: () => true },
+      { name: 'Cursor', dir: '.cursor/skills', detect: () => true },
+      { name: 'Codex', dir: '.codex/skills', detect: () => true },
+    ];
+
+    it('matches multiple agent names case-insensitively', () => {
+      const result = resolveRequestedAgents(agents, ['claude code', 'CURSOR']);
+
+      expect(result.agents.map((agent) => agent.name)).toEqual(['Claude Code', 'Cursor']);
+      expect(result.unknownNames).toEqual([]);
+    });
+
+    it('deduplicates repeated agent names', () => {
+      const result = resolveRequestedAgents(agents, ['Codex', 'codex']);
+
+      expect(result.agents.map((agent) => agent.name)).toEqual(['Codex']);
+      expect(result.unknownNames).toEqual([]);
+    });
+
+    it('reports every unknown agent name without dropping valid selections', () => {
+      const result = resolveRequestedAgents(agents, ['Cursor', 'Unknown', 'Also Unknown']);
+
+      expect(result.agents.map((agent) => agent.name)).toEqual(['Cursor']);
+      expect(result.unknownNames).toEqual(['Unknown', 'Also Unknown']);
     });
   });
 });
