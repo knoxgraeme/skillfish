@@ -21,7 +21,7 @@
 
 ```bash
 # One-off skill installation
-npx skillfish add owner/repo
+npx skillfish@latest add owner/repo
 
 # For skill management (list, update, remove), install globally
 npm i -g skillfish
