@@ -187,6 +187,19 @@ export interface SearchResponse {
 // === Search API ===
 
 /**
+ * Coerce an API error payload into a displayable string.
+ * The registry may return `error` as a non-string (e.g. an object).
+ */
+function toErrorMessage(value: unknown, fallback: string): string {
+  if (typeof value === 'string' && value.trim()) return value;
+  if (value && typeof value === 'object') {
+    const msg = (value as { message?: unknown }).message;
+    if (typeof msg === 'string' && msg.trim()) return msg;
+  }
+  return fallback;
+}
+
+/**
  * Search for skills in the registry.
  *
  * @param query - Search query string
@@ -262,7 +275,7 @@ export async function searchSkillsInRegistry(
         hasMore: boolean;
         itemsPerPage: number;
       };
-      error?: string;
+      error?: unknown;
     };
 
     if (!res.ok) {
@@ -270,7 +283,7 @@ export async function searchSkillsInRegistry(
         success: false,
         results: [],
         totalCount: 0,
-        error: data.error || `Registry error: ${res.status}`,
+        error: toErrorMessage(data.error, `Registry error: ${res.status}`),
       };
     }
 
