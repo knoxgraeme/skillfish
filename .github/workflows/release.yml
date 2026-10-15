@@ -36,6 +36,8 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - run: npm ci
       - run: npm run lint
+      # Create mock Claude Code config so agent detection works in tests (same as ci.yml)
+      - run: mkdir -p ~/.claude && echo '{}' > ~/.claude/settings.json
       - run: npm test
 
       - name: Bump version
