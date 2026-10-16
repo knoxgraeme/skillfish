@@ -24,8 +24,10 @@ export interface CliResult {
  */
 export function invokeCli(args: string[]): CliResult {
   try {
-    // Use execFileSync with array args to prevent shell injection
-    const stdout = execFileSync('npx', ['tsx', CLI_PATH, ...args], {
+    // Use execFileSync with array args to prevent shell injection.
+    // Run node directly with tsx as a loader rather than going through npx: on Windows
+    // npx is a .cmd shim, which execFileSync cannot launch without a shell.
+    const stdout = execFileSync(process.execPath, ['--import', 'tsx', CLI_PATH, ...args], {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
     });
