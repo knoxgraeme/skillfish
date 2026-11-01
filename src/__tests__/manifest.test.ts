@@ -186,6 +186,27 @@ describe('manifest', () => {
       expect(result).toBeNull();
     });
 
+    it('reads contentSha and rejects a malformed one', () => {
+      const manifest = {
+        version: MANIFEST_VERSION,
+        owner: 'test-owner',
+        repo: 'test-repo',
+        path: 'skills/demo',
+        branch: 'main',
+        sha: 'fc6274d15fa3ae2ab983129fb037999f264ba9a7',
+        contentSha: 'abc1234567890abcdef1234567890abcdef12345',
+      };
+
+      writeFileSync(join(testDir, MANIFEST_FILENAME), JSON.stringify(manifest));
+      expect(readManifest(testDir)?.contentSha).toBe(manifest.contentSha);
+
+      writeFileSync(
+        join(testDir, MANIFEST_FILENAME),
+        JSON.stringify({ ...manifest, contentSha: 'not-a-sha' }),
+      );
+      expect(readManifest(testDir)).toBeNull();
+    });
+
     it('returns null for manifest with path traversal', () => {
       const invalidManifest = {
         version: MANIFEST_VERSION,
@@ -411,6 +432,29 @@ describe('manifest', () => {
 
       expect(result).not.toBeNull();
       expect(result!.source).toBe('manifest');
+    });
+
+    it('preserves valid contentSha and drops an invalid one', () => {
+      const manifest = {
+        version: 1,
+        owner: 'test-owner',
+        repo: 'test-repo',
+        path: '.',
+        branch: 'main',
+        sha: 'fc6274d15fa3ae2ab983129fb037999f264ba9a7',
+        contentSha: 'abc1234567890abcdef1234567890abcdef12345',
+      };
+
+      writeFileSync(join(testDir, MANIFEST_FILENAME), JSON.stringify(manifest));
+      expect(healManifest(testDir)?.contentSha).toBe(manifest.contentSha);
+
+      writeFileSync(
+        join(testDir, MANIFEST_FILENAME),
+        JSON.stringify({ ...manifest, contentSha: 'bogus' }),
+      );
+      const healed = healManifest(testDir);
+      expect(healed).not.toBeNull();
+      expect(healed!.contentSha).toBeUndefined();
     });
 
     it('preserves valid ref field', () => {

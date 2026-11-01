@@ -12,6 +12,7 @@ import { trackCommand } from '../telemetry.js';
 import { getDetectedAgentsForLocation, getAgentSkillDir, type Agent } from '../lib/agents.js';
 import { listInstalledSkillsInDir, installSkill } from '../lib/installer.js';
 import { readManifest, type SkillManifest } from '../lib/manifest.js';
+import { isSkillModified } from '../lib/integrity.js';
 import {
   fetchRecursiveTree,
   getSkillSha,
@@ -28,7 +29,10 @@ import { isInputTTY, isTTY, batchMap, type UpdateJsonOutput } from '../utils.js'
 
 interface UpdateCommandOptions {
   yes?: boolean;
+  force?: boolean;
 }
+
+const MODIFIED_REASON = 'Modified locally (use --force to overwrite)';
 
 /**
  * Tracked skill with manifest information.
@@ -46,6 +50,7 @@ interface TrackedSkill {
 export const updateCommand = new Command('update')
   .description('Check for and apply updates to installed skills')
   .option('-y, --yes', 'Update all outdated skills without prompting')
+  .option('--force', 'Overwrite skills that were edited locally')
   .helpOption('-h, --help', 'Display help for command')
   .addHelpText(
     'after',
@@ -53,12 +58,14 @@ export const updateCommand = new Command('update')
 Examples:
   $ skillfish update                  Check for updates interactively
   $ skillfish update --yes            Update all outdated skills
+  $ skillfish update --yes --force    Update all, discarding local edits
   $ skillfish update --json           Check for updates (JSON output)
   $ skillfish update --yes --json     Update all outdated skills (JSON output)`,
   )
   .action(async (options: UpdateCommandOptions, command: Command) => {
     const jsonMode = command.parent?.opts().json ?? false;
     const autoUpdate = options.yes ?? false;
+    const force = options.force ?? false;
     const version = command.parent?.opts().version ?? '0.0.0';
 
     // JSON output state
@@ -68,6 +75,7 @@ Examples:
       errors: [],
       outdated: [],
       updated: [],
+      skipped: [],
     };
 
     function addError(message: string): void {
@@ -224,6 +232,15 @@ Examples:
       process.exit(EXIT_CODES.SUCCESS);
     }
 
+    // Reinstalling replaces the whole directory, so never do it over local edits unless forced
+    const modified = force ? [] : outdated.filter((s) => isSkillModified(s.path, s.manifest));
+    const toUpdate = outdated.filter((s) => !modified.includes(s));
+    jsonOutput.skipped = modified.map((s) => ({
+      skill: s.skill,
+      agent: s.agent.name,
+      reason: MODIFIED_REASON,
+    }));
+
     // Display outdated skills (TTY mode)
     if (!jsonMode) {
       console.log();
@@ -235,8 +252,16 @@ Examples:
           `  ${pc.yellow('•')} ${pc.bold(skill.skill)} (${skill.agent.name}, ${locationLabel})`,
         );
         console.log(`    ${pc.dim(shortLocal)} → ${pc.cyan(shortRemote)}`);
+        if (modified.includes(skill)) {
+          console.log(`    ${pc.yellow('modified locally, will not update')}`);
+        }
       }
       console.log();
+      if (modified.length > 0) {
+        p.log.warn(
+          `${modified.length} skill${modified.length === 1 ? ' has' : 's have'} local edits. Run with ${pc.cyan('--force')} to overwrite.`,
+        );
+      }
     }
 
     // If --json without --yes: check mode only - don't apply updates
@@ -244,10 +269,18 @@ Examples:
       outputJsonAndExit(EXIT_CODES.SUCCESS);
     }
 
+    if (toUpdate.length === 0) {
+      if (jsonMode) {
+        outputJsonAndExit(EXIT_CODES.SUCCESS);
+      }
+      p.outro(pc.yellow('No skills updated'));
+      process.exit(EXIT_CODES.SUCCESS);
+    }
+
     // Prompt for confirmation (unless --yes)
     if (!autoUpdate && isInputTTY() && !jsonMode) {
       const proceed = await p.confirm({
-        message: `Update all ${outdated.length} skill${outdated.length === 1 ? '' : 's'}?`,
+        message: `Update ${toUpdate.length} skill${toUpdate.length === 1 ? '' : 's'}?`,
         initialValue: true,
       });
 
@@ -261,14 +294,14 @@ Examples:
     const UPDATE_CONCURRENCY = 5;
 
     interface UpdateResult {
-      skill: (typeof outdated)[0];
+      skill: (typeof toUpdate)[0];
       success: boolean;
       errorMsg?: string;
     }
 
     // Track progress for spinner updates
     let completedCount = 0;
-    const totalCount = outdated.length;
+    const totalCount = toUpdate.length;
 
     // Start spinner for update progress
     let updateSpinner: ReturnType<typeof p.spinner> | null = null;
@@ -278,7 +311,7 @@ Examples:
     }
 
     const updateResults = await batchMap(
-      outdated,
+      toUpdate,
       async (skill): Promise<UpdateResult> => {
         try {
           const result = await installSkill(
@@ -362,7 +395,7 @@ Examples:
     if (failedCount > 0) {
       p.outro(
         pc.yellow(
-          `Updated ${updatedCount} of ${outdated.length} skill${outdated.length === 1 ? '' : 's'}`,
+          `Updated ${updatedCount} of ${toUpdate.length} skill${toUpdate.length === 1 ? '' : 's'}`,
         ),
       );
       process.exit(EXIT_CODES.GENERAL_ERROR);

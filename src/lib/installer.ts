@@ -11,6 +11,7 @@ import { downloadTemplate } from 'giget';
 import { getAgentSkillDir, type Agent } from './agents.js';
 import { getGitHubToken, hasGitHubToken } from './auth.js';
 import { SKILL_FILENAME } from './github.js';
+import { computeTreeSha } from './integrity.js';
 import {
   writeManifest,
   type SkillManifest,
@@ -252,6 +253,7 @@ export async function installSkill(
               sha,
               ref: ref,
               source: source as SkillSource | undefined,
+              contentSha: computeTreeSha(destDir),
             };
             writeManifest(destDir, manifest);
           } catch (manifestErr) {

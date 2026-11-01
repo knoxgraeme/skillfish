@@ -241,6 +241,8 @@ export interface OutdatedSkill {
 export interface UpdateJsonOutput extends BaseJsonOutput {
   outdated: OutdatedSkill[];
   updated: InstalledSkill[];
+  /** Outdated skills left untouched, e.g. because they were edited locally */
+  skipped: { skill: string; agent: string; reason: string }[];
 }
 
 /**
