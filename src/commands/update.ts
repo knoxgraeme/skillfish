@@ -12,10 +12,12 @@ import { trackCommand } from '../telemetry.js';
 import { getDetectedAgentsForLocation, getAgentSkillDir, type Agent } from '../lib/agents.js';
 import { listInstalledSkillsInDir, installSkill } from '../lib/installer.js';
 import { readManifest, type SkillManifest } from '../lib/manifest.js';
-import { isSkillModified } from '../lib/integrity.js';
+import { computeTreeSha, getLocalEditStatus, type LocalEditStatus } from '../lib/integrity.js';
 import {
+  fetchCommitTreeSha,
   fetchRecursiveTree,
   getSkillSha,
+  SKILL_FILENAME,
   RateLimitError,
   RepoNotFoundError,
   NetworkError,
@@ -32,7 +34,10 @@ interface UpdateCommandOptions {
   force?: boolean;
 }
 
-const MODIFIED_REASON = 'Modified locally (use --force to overwrite)';
+const HELD_REASONS: Record<Exclude<LocalEditStatus, 'unchanged'>, string> = {
+  modified: 'Modified locally (use --force to overwrite)',
+  unknown: 'May have local edits, installed by an older skillfish (use --force to update)',
+};
 
 /**
  * Tracked skill with manifest information.
@@ -233,12 +238,23 @@ Examples:
     }
 
     // Reinstalling replaces the whole directory, so never do it over local edits unless forced
-    const modified = force ? [] : outdated.filter((s) => isSkillModified(s.path, s.manifest));
-    const toUpdate = outdated.filter((s) => !modified.includes(s));
-    jsonOutput.skipped = modified.map((s) => ({
+    const editStatus = new Map<(typeof outdated)[0], LocalEditStatus>(
+      outdated.map((s) => [s, force ? 'unchanged' : getLocalEditStatus(s.path, s.manifest)]),
+    );
+    const commitTrees = new Map<string, Promise<string | null>>();
+    for (const skill of outdated) {
+      if (editStatus.get(skill) === 'unknown' && (await matchesCommitTree(skill, commitTrees))) {
+        editStatus.set(skill, 'unchanged');
+      }
+    }
+    const held = outdated.filter((s) => editStatus.get(s) !== 'unchanged');
+    const toUpdate = outdated.filter((s) => editStatus.get(s) === 'unchanged');
+    const heldReason = (s: (typeof outdated)[0]): string =>
+      HELD_REASONS[editStatus.get(s) === 'unknown' ? 'unknown' : 'modified'];
+    jsonOutput.skipped = held.map((s) => ({
       skill: s.skill,
       agent: s.agent.name,
-      reason: MODIFIED_REASON,
+      reason: heldReason(s),
     }));
 
     // Display outdated skills (TTY mode)
@@ -252,14 +268,14 @@ Examples:
           `  ${pc.yellow('•')} ${pc.bold(skill.skill)} (${skill.agent.name}, ${locationLabel})`,
         );
         console.log(`    ${pc.dim(shortLocal)} → ${pc.cyan(shortRemote)}`);
-        if (modified.includes(skill)) {
-          console.log(`    ${pc.yellow('modified locally, will not update')}`);
+        if (held.includes(skill)) {
+          console.log(`    ${pc.yellow(`not updated: ${heldReason(skill)}`)}`);
         }
       }
       console.log();
-      if (modified.length > 0) {
+      if (held.length > 0) {
         p.log.warn(
-          `${modified.length} skill${modified.length === 1 ? ' has' : 's have'} local edits. Run with ${pc.cyan('--force')} to overwrite.`,
+          `${held.length} skill${held.length === 1 ? ' was' : 's were'} not updated to protect local edits. Run with ${pc.cyan('--force')} to update anyway.`,
         );
       }
     }
@@ -408,6 +424,42 @@ Examples:
   });
 
 // === Helper Functions ===
+
+/**
+ * Older manifests can hold a commit SHA instead of a tree SHA (root-level skills
+ * after `update`, or any skill whose directory lookup missed). Resolve the skill's
+ * tree at that commit and compare it with the local files.
+ * Any lookup failure keeps the skill protected.
+ */
+async function matchesCommitTree(
+  skill: TrackedSkill,
+  cache: Map<string, Promise<string | null>>,
+): Promise<boolean> {
+  try {
+    const { owner, repo, sha, path } = skill.manifest;
+    const key = `${owner}/${repo}@${sha}#${path}`;
+    if (!cache.has(key)) {
+      // Cache the promise, swallowing errors, so a skill installed for several agents costs one request
+      cache.set(
+        key,
+        fetchSkillTreeAtCommit(skill.manifest).catch(() => null),
+      );
+    }
+    const treeSha = await cache.get(key);
+    return typeof treeSha === 'string' && treeSha === computeTreeSha(skill.path);
+  } catch {
+    return false;
+  }
+}
+
+async function fetchSkillTreeAtCommit(manifest: SkillManifest): Promise<string | null> {
+  const { owner, repo, path, sha } = manifest;
+  if (path === '.') {
+    return fetchCommitTreeSha(owner, repo, sha);
+  }
+  const { tree } = await fetchRecursiveTree(owner, repo, sha);
+  return getSkillSha(tree, `${path}/${SKILL_FILENAME}`) ?? null;
+}
 
 /**
  * Collect all installed skills that have manifests (tracked skills).

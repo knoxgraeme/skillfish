@@ -9,7 +9,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, chmodSync, symlinkSync }
 import { execFileSync } from 'child_process';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { computeTreeSha, isSkillModified } from '../lib/integrity.js';
+import { computeTreeSha, getLocalEditStatus } from '../lib/integrity.js';
 import type { SkillManifest } from '../lib/manifest.js';
 
 function gitWriteTree(dir: string): string {
@@ -87,7 +87,7 @@ describe('computeTreeSha', () => {
   });
 });
 
-describe('isSkillModified', () => {
+describe('getLocalEditStatus', () => {
   let dir: string;
 
   beforeEach(() => {
@@ -101,48 +101,59 @@ describe('isSkillModified', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it('is false when content matches the recorded contentSha', () => {
+  it('is unchanged when content matches the recorded contentSha', () => {
     const manifest = baseManifest({ contentSha: computeTreeSha(dir) });
-    expect(isSkillModified(dir, manifest)).toBe(false);
+    expect(getLocalEditStatus(dir, manifest)).toBe('unchanged');
   });
 
   it('detects edited, added and deleted files', () => {
     const manifest = baseManifest({ contentSha: computeTreeSha(dir) });
 
     writeFileSync(join(dir, 'SKILL.md'), '# Demo\n\nMy local tweak\n');
-    expect(isSkillModified(dir, manifest)).toBe(true);
+    expect(getLocalEditStatus(dir, manifest)).toBe('modified');
 
     writeFileSync(join(dir, 'SKILL.md'), '# Demo\n');
     writeFileSync(join(dir, 'notes.md'), 'mine\n');
-    expect(isSkillModified(dir, manifest)).toBe(true);
+    expect(getLocalEditStatus(dir, manifest)).toBe('modified');
 
     rmSync(join(dir, 'notes.md'));
     rmSync(join(dir, 'references', 'guide.md'));
-    expect(isSkillModified(dir, manifest)).toBe(true);
+    expect(getLocalEditStatus(dir, manifest)).toBe('modified');
   });
 
-  it('protects legacy installs by comparing against the stored tree sha', () => {
+  it('compares older installs against the stored tree sha', () => {
     // Manifests written before contentSha existed hold the GitHub tree SHA,
     // which equals the git tree hash of the untouched installed directory.
     const manifest = baseManifest({ sha: computeTreeSha(dir) });
-    expect(isSkillModified(dir, manifest)).toBe(false);
+    expect(getLocalEditStatus(dir, manifest)).toBe('unchanged');
 
+    // Without contentSha a mismatch can't be pinned on the user: sha may be a
+    // commit SHA, or Windows may hide executable bits.
     writeFileSync(join(dir, 'SKILL.md'), '# Demo\n\nMy local tweak\n');
-    expect(isSkillModified(dir, manifest)).toBe(true);
+    expect(getLocalEditStatus(dir, manifest)).toBe('unknown');
+    expect(getLocalEditStatus(dir, baseManifest({ sha: 'c'.repeat(40) }))).toBe('unknown');
   });
 
-  it('protects legacy root-level installs whose sha is the SKILL.md blob', () => {
+  it('accepts an untouched older root-level install whose sha is the SKILL.md blob', () => {
     writeFileSync(join(dir, 'README.md'), 'rest of the repo\n');
     const manifest = baseManifest({ path: '.', sha: gitBlobSha(join(dir, 'SKILL.md')) });
-    expect(isSkillModified(dir, manifest)).toBe(false);
+    expect(getLocalEditStatus(dir, manifest)).toBe('unchanged');
+  });
 
+  it('cannot verify an older root-level install whose sha matches nothing', () => {
+    // After `update`, root-level manifests hold a commit SHA, indistinguishable
+    // offline from the blob SHA of an edited SKILL.md.
+    const manifest = baseManifest({ path: '.', sha: gitBlobSha(join(dir, 'SKILL.md')) });
     writeFileSync(join(dir, 'SKILL.md'), '# Demo\n\nMy local tweak\n');
-    expect(isSkillModified(dir, manifest)).toBe(true);
+    expect(getLocalEditStatus(dir, manifest)).toBe('unknown');
+
+    const commitShaManifest = baseManifest({ path: '.', sha: 'c'.repeat(40) });
+    expect(getLocalEditStatus(dir, commitShaManifest)).toBe('unknown');
   });
 
   it('treats an unreadable skill directory as modified', () => {
     const manifest = baseManifest({ contentSha: computeTreeSha(dir) });
     rmSync(dir, { recursive: true, force: true });
-    expect(isSkillModified(dir, manifest)).toBe(true);
+    expect(getLocalEditStatus(dir, manifest)).toBe('modified');
   });
 });

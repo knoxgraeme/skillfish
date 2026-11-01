@@ -33,34 +33,43 @@ export function computeTreeSha(dir: string): string {
 }
 
 /**
- * Check whether an installed skill differs from what skillfish installed.
+ * Whether an installed skill still matches what skillfish installed.
+ * - `unchanged`: safe to overwrite
+ * - `modified`: files changed since install
+ * - `unknown`: files differ from an older manifest's sha, which may not reflect what was installed
+ */
+export type LocalEditStatus = 'unchanged' | 'modified' | 'unknown';
+
+/**
+ * Compare an installed skill with what skillfish installed.
  * Unreadable directories count as modified, so callers err on the side of keeping files.
  *
  * @param skillDir - Installed skill directory
  * @param manifest - The skill's .skillfish.json manifest
- * @returns true if the files on disk no longer match the installed version
  */
-export function isSkillModified(skillDir: string, manifest: SkillManifest): boolean {
+export function getLocalEditStatus(skillDir: string, manifest: SkillManifest): LocalEditStatus {
   try {
     const localSha = computeTreeSha(skillDir);
     if (manifest.contentSha) {
-      return localSha !== manifest.contentSha;
+      return localSha === manifest.contentSha ? 'unchanged' : 'modified';
     }
 
-    // Legacy manifest: sha is the GitHub tree SHA of the skill directory...
+    // Older manifests have no contentSha. Their sha is usually the GitHub tree SHA
+    // of the skill directory (equal to the local tree hash), or for root-level
+    // skills the SKILL.md blob SHA. It can also be a commit SHA, and Windows can't
+    // see executable bits, so a mismatch doesn't prove the user edited anything.
     if (localSha === manifest.sha) {
-      return false;
+      return 'unchanged';
     }
-    // ...or, for root-level skills, the blob SHA of SKILL.md alone.
     if (manifest.path === '.') {
       const skillMd = readFileSync(join(skillDir, SKILL_FILENAME));
-      return gitObjectHash('blob', skillMd).toString('hex') !== manifest.sha;
+      if (gitObjectHash('blob', skillMd).toString('hex') === manifest.sha) {
+        return 'unchanged';
+      }
     }
-    // shortcut: on Windows, executable bits are invisible, so legacy skills with
-    // scripts read as modified until the next update (or --force) records contentSha.
-    return true;
+    return 'unknown';
   } catch {
-    return true;
+    return 'modified';
   }
 }
 

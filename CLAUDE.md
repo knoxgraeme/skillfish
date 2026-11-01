@@ -52,7 +52,7 @@ npm run typecheck      # TypeScript type checking
 - `src/lib/http.ts` - Shared HTTP utilities (fetchWithRetry with timeout and exponential backoff)
 - `src/lib/installer.ts` - Skill installation logic (downloads via giget tarball, validates SKILL.md exists, copies to agent directories)
 - `src/lib/manifest.ts` - Per-skill manifest handling (reads/writes `.skillfish.json` inside each skill directory for tracking origin and version)
-- `src/lib/integrity.ts` - Local edit detection (`computeTreeSha()` hashes a skill directory exactly like `git write-tree`; `isSkillModified()` compares it with the manifest)
+- `src/lib/integrity.ts` - Local edit detection (`computeTreeSha()` hashes a skill directory exactly like `git write-tree`; `getLocalEditStatus()` compares it with the manifest)
 - `src/lib/project-manifest.ts` - Project manifest handling (reads/writes `skillfish.json` at project or home root for declarative skill installation)
 - `src/lib/registry.ts` - Registry API client for skill submission and search (mcpmarket.com)
 - `src/lib/constants.ts` - Exit codes (EXIT_CODES), machine-readable error codes (ERROR_CODES) for JSON output, and name validation utilities
@@ -132,7 +132,7 @@ Two distinct manifest files work together for skill tracking:
 
 **Removal logic** (`install.ts`): A skill is removed only if `source === 'manifest'` AND its key is NOT in the project manifest. This protects manually installed skills.
 
-**Local edit protection** (`integrity.ts`): `update` and `install` never overwrite or remove a skill whose files changed since install, unless `--force` is passed. `isSkillModified()` compares the directory's git tree hash with `contentSha`, falling back to `sha` for older manifests: the GitHub tree SHA of an untouched skill directory equals its local git tree hash.
+**Local edit protection** (`integrity.ts`): `update` and `install` never overwrite or remove a skill whose files changed since install, unless `--force` is passed. `getLocalEditStatus()` compares the directory's git tree hash with `contentSha` (`modified` on mismatch). Older manifests without `contentSha` fall back to `sha`, which usually equals the local git tree hash of an untouched skill; a mismatch there is `unknown`, because `sha` can be a commit SHA (`fetchRecursiveTree().sha` is the commit, not the root tree). Both `modified` and `unknown` block overwrites. Before holding an `unknown` skill, `update` resolves a commit SHA to the skill's tree at that commit (`fetchCommitTreeSha()` / `fetchRecursiveTree()`) and proceeds if it matches, which records `contentSha`.
 
 ## Adding Agent Support
 

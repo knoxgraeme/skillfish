@@ -17,7 +17,7 @@ import {
   type DetectionLocation,
 } from '../lib/agents.js';
 import { installSkill, listInstalledSkillsInDir } from '../lib/installer.js';
-import { isSkillModified } from '../lib/integrity.js';
+import { getLocalEditStatus, type LocalEditStatus } from '../lib/integrity.js';
 import {
   readManifest,
   getManifestKey,
@@ -55,7 +55,10 @@ interface InstallCommandOptions {
   force?: boolean;
 }
 
-const MODIFIED_REASON = 'Modified locally (use --force to overwrite)';
+const HELD_REASONS: Record<Exclude<LocalEditStatus, 'unchanged'>, string> = {
+  modified: 'Modified locally (use --force to overwrite)',
+  unknown: 'May have local edits, installed by an older skillfish (use --force to overwrite)',
+};
 
 /**
  * A single installation of a skill to one agent.
@@ -358,7 +361,7 @@ Examples:
     // Check which target agents are missing the skill
     const actions: SkillAction[] = [];
 
-    // Skills left alone because they were edited locally (see --force)
+    // Skills left alone because they may have been edited locally (see --force)
     let keptForEdits = 0;
     function keepEditedSkill(message: string): void {
       keptForEdits++;
@@ -394,13 +397,15 @@ Examples:
 
         // Reinstalling replaces the directory, so local edits block it unless forced
         const needsReinstall = existing.manifestKey !== entryKey || existingRef !== newRef;
-        const reinstallBlocked = needsReinstall && !force && hasLocalEdits(existing);
+        const editStatus = needsReinstall && !force ? localEditStatus(existing) : 'unchanged';
+        const reinstallBlocked = editStatus !== 'unchanged';
+        const editNote = editStatus === 'unknown' ? 'may have local edits' : 'edited locally';
 
         // Check if source changed (different owner/repo/path, same directory name)
         if (existing.manifestKey !== entryKey) {
           if (reinstallBlocked) {
-            actions.push({ type: 'skip', entry, reason: MODIFIED_REASON });
-            keepEditedSkill(`Keeping ${pc.bold(skillName)}: source changed, but edited locally`);
+            actions.push({ type: 'skip', entry, reason: HELD_REASONS[editStatus] });
+            keepEditedSkill(`Keeping ${pc.bold(skillName)}: source changed, but ${editNote}`);
             continue;
           }
           // Source changed - reinstall from new source
@@ -415,8 +420,8 @@ Examples:
 
         // Same source - compare refs
         if (reinstallBlocked) {
-          actions.push({ type: 'skip', entry, reason: MODIFIED_REASON });
-          keepEditedSkill(`Keeping ${pc.bold(skillName)}: ref changed, but edited locally`);
+          actions.push({ type: 'skip', entry, reason: HELD_REASONS[editStatus] });
+          keepEditedSkill(`Keeping ${pc.bold(skillName)}: ref changed, but ${editNote}`);
         } else if (existingRef !== newRef) {
           // Ref changed - reinstall to all target agents
           const reason = existingRef
@@ -460,11 +465,15 @@ Examples:
       const source = firstInstall.manifest.source ?? 'manual';
       // Use manifest key for matching instead of directory name
       if (source === 'manifest' && skill.manifestKey && !manifestKeys.has(skill.manifestKey)) {
-        if (!force && hasLocalEdits(skill)) {
-          const reason = 'Modified locally, not removed (use --force to remove)';
+        const editStatus = force ? 'unchanged' : localEditStatus(skill);
+        if (editStatus !== 'unchanged') {
+          const unknown = editStatus === 'unknown';
+          const reason = unknown
+            ? 'May have local edits, not removed (use --force to remove)'
+            : 'Modified locally, not removed (use --force to remove)';
           jsonOutput.skipped.push({ skill: skill.name, reason });
           keepEditedSkill(
-            `Keeping ${pc.bold(skill.name)}: no longer in manifest, but edited locally`,
+            `Keeping ${pc.bold(skill.name)}: no longer in manifest, but ${unknown ? 'may have local edits' : 'edited locally'}`,
           );
           continue;
         }
@@ -887,13 +896,17 @@ Examples:
 // === Helper Functions ===
 
 /**
- * Check whether any installation of a tracked skill was edited since skillfish installed it.
+ * Local edit status across all installations of a tracked skill.
+ * Returns the most cautious result: modified, then unknown, then unchanged.
  */
-function hasLocalEdits(skill: InstalledSkillInfo): boolean {
-  return skill.installations.some(
-    (installation) =>
-      installation.manifest !== null && isSkillModified(installation.path, installation.manifest),
+function localEditStatus(skill: InstalledSkillInfo): LocalEditStatus {
+  const statuses = skill.installations.map((installation) =>
+    installation.manifest
+      ? getLocalEditStatus(installation.path, installation.manifest)
+      : 'unchanged',
   );
+  if (statuses.includes('modified')) return 'modified';
+  return statuses.includes('unknown') ? 'unknown' : 'unchanged';
 }
 
 /**
