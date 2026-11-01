@@ -11,7 +11,7 @@ import { printBanner } from '../lib/banner.js';
 import { trackCommand } from '../telemetry.js';
 import { getDetectedAgentsForLocation, getAgentSkillDir, type Agent } from '../lib/agents.js';
 import { listInstalledSkillsInDir, installSkill } from '../lib/installer.js';
-import { readManifest, type SkillManifest } from '../lib/manifest.js';
+import { readManifest, isSkillModified, type SkillManifest } from '../lib/manifest.js';
 import {
   fetchRecursiveTree,
   getSkillSha,
@@ -28,6 +28,7 @@ import { isInputTTY, isTTY, batchMap, type UpdateJsonOutput } from '../utils.js'
 
 interface UpdateCommandOptions {
   yes?: boolean;
+  force?: boolean;
 }
 
 /**
@@ -46,6 +47,7 @@ interface TrackedSkill {
 export const updateCommand = new Command('update')
   .description('Check for and apply updates to installed skills')
   .option('-y, --yes', 'Update all outdated skills without prompting')
+  .option('-f, --force', 'Overwrite skills that have local modifications')
   .helpOption('-h, --help', 'Display help for command')
   .addHelpText(
     'after',
@@ -59,6 +61,7 @@ Examples:
   .action(async (options: UpdateCommandOptions, command: Command) => {
     const jsonMode = command.parent?.opts().json ?? false;
     const autoUpdate = options.yes ?? false;
+    const forceFlag = options.force ?? false;
     const version = command.parent?.opts().version ?? '0.0.0';
 
     // JSON output state
@@ -68,6 +71,7 @@ Examples:
       errors: [],
       outdated: [],
       updated: [],
+      skipped: [],
     };
 
     function addError(message: string): void {
@@ -239,6 +243,31 @@ Examples:
       console.log();
     }
 
+    // Skip skills with local edits unless --force
+    const modifiedSkills = forceFlag
+      ? []
+      : outdated.filter((s) => isSkillModified(s.path, s.manifest));
+    const toUpdate = outdated.filter((s) => !modifiedSkills.includes(s));
+    for (const s of modifiedSkills) {
+      jsonOutput.skipped.push({
+        skill: s.skill,
+        agent: s.agent.name,
+        reason: 'Locally modified (use --force to overwrite)',
+      });
+      if (!jsonMode) {
+        p.log.warn(
+          `${s.skill} (${s.agent.name}) has local modifications - skipped (use --force to overwrite)`,
+        );
+      }
+    }
+    if (toUpdate.length === 0) {
+      if (jsonMode) {
+        outputJsonAndExit(EXIT_CODES.SUCCESS);
+      }
+      p.outro(pc.yellow('No skills updated (local modifications found)'));
+      process.exit(EXIT_CODES.SUCCESS);
+    }
+
     // If --json without --yes: check mode only - don't apply updates
     if (jsonMode && !autoUpdate) {
       outputJsonAndExit(EXIT_CODES.SUCCESS);
@@ -247,7 +276,7 @@ Examples:
     // Prompt for confirmation (unless --yes)
     if (!autoUpdate && isInputTTY() && !jsonMode) {
       const proceed = await p.confirm({
-        message: `Update all ${outdated.length} skill${outdated.length === 1 ? '' : 's'}?`,
+        message: `Update all ${toUpdate.length} skill${toUpdate.length === 1 ? '' : 's'}?`,
         initialValue: true,
       });
 
@@ -261,14 +290,14 @@ Examples:
     const UPDATE_CONCURRENCY = 5;
 
     interface UpdateResult {
-      skill: (typeof outdated)[0];
+      skill: (typeof toUpdate)[0];
       success: boolean;
       errorMsg?: string;
     }
 
     // Track progress for spinner updates
     let completedCount = 0;
-    const totalCount = outdated.length;
+    const totalCount = toUpdate.length;
 
     // Start spinner for update progress
     let updateSpinner: ReturnType<typeof p.spinner> | null = null;
@@ -278,7 +307,7 @@ Examples:
     }
 
     const updateResults = await batchMap(
-      outdated,
+      toUpdate,
       async (skill): Promise<UpdateResult> => {
         try {
           const result = await installSkill(
@@ -362,7 +391,7 @@ Examples:
     if (failedCount > 0) {
       p.outro(
         pc.yellow(
-          `Updated ${updatedCount} of ${outdated.length} skill${outdated.length === 1 ? '' : 's'}`,
+          `Updated ${updatedCount} of ${toUpdate.length} skill${toUpdate.length === 1 ? '' : 's'}`,
         ),
       );
       process.exit(EXIT_CODES.GENERAL_ERROR);

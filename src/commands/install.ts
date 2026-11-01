@@ -19,6 +19,7 @@ import {
 import { installSkill, listInstalledSkillsInDir } from '../lib/installer.js';
 import {
   readManifest,
+  isSkillModified,
   getManifestKey,
   buildManifestKey,
   type SkillManifest,
@@ -51,6 +52,7 @@ interface InstallCommandOptions {
   project?: boolean;
   yes?: boolean;
   dryRun?: boolean;
+  force?: boolean;
 }
 
 /**
@@ -90,6 +92,7 @@ export const installCommand = new Command('install')
   .option('--project', 'Install from ./skillfish.json to project location')
   .option('-y, --yes', 'Skip all confirmation prompts')
   .option('--dry-run', 'Show what would happen without making changes')
+  .option('-f, --force', 'Overwrite or remove skills that have local modifications')
   .helpOption('-h, --help', 'Display help for command')
   .addHelpText(
     'after',
@@ -108,6 +111,7 @@ Examples:
     const projectFlag = options.project ?? false;
     const skipPrompts = options.yes ?? false;
     const dryRun = options.dryRun ?? false;
+    const forceFlag = options.force ?? false;
 
     // Reject conflicting flags
     if (globalFlag && projectFlag) {
@@ -136,6 +140,7 @@ Examples:
       installed: [],
       skipped: [],
       removed: [],
+      modified_skipped: [],
       conflicts: [],
     };
 
@@ -421,6 +426,29 @@ Examples:
       }
     }
 
+    // Protect locally modified skills from reinstall/removal unless --force
+    const modifiedInstalls = (name: string): SkillInstallation[] =>
+      forceFlag
+        ? []
+        : (installedSkills.find((s) => s.name === name)?.installations ?? []).filter((i) =>
+            isSkillModified(i.path, i.manifest),
+          );
+    for (let idx = 0; idx < actions.length; idx++) {
+      const action = actions[idx];
+      if (action.type !== 'reinstall') continue;
+      const name = deriveSkillDirName(action.entry);
+      const modified = modifiedInstalls(name);
+      if (modified.length === 0) continue;
+      for (const m of modified) {
+        jsonOutput.modified_skipped.push({ skill: name, agent: m.agent.name });
+      }
+      actions[idx] = {
+        type: 'skip',
+        entry: action.entry,
+        reason: 'Locally modified (use --force to overwrite)',
+      };
+    }
+
     // Find skills to remove (source='manifest' but no longer in manifest)
     // Match by manifest key (owner/repo/path) for robust identification
     const manifestKeys = new Set(entries.map((e) => buildManifestKey(e.owner, e.repo, e.path)));
@@ -433,6 +461,18 @@ Examples:
       const source = firstInstall.manifest.source ?? 'manual';
       // Use manifest key for matching instead of directory name
       if (source === 'manifest' && skill.manifestKey && !manifestKeys.has(skill.manifestKey)) {
+        const modified = modifiedInstalls(skill.name);
+        if (modified.length > 0) {
+          for (const m of modified) {
+            jsonOutput.modified_skipped.push({ skill: skill.name, agent: m.agent.name });
+          }
+          if (!jsonMode) {
+            p.log.warn(
+              `${skill.name} was removed from the manifest but has local modifications - kept (use --force to remove)`,
+            );
+          }
+          continue;
+        }
         toRemove.push(skill);
       }
     }

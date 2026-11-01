@@ -13,6 +13,7 @@ import { getGitHubToken, hasGitHubToken } from './auth.js';
 import { SKILL_FILENAME } from './github.js';
 import {
   writeManifest,
+  hashSkillDir,
   type SkillManifest,
   type SkillSource,
   MANIFEST_VERSION,
@@ -252,6 +253,7 @@ export async function installSkill(
               sha,
               ref: ref,
               source: source as SkillSource | undefined,
+              contentHash: hashSkillDir(destDir),
             };
             writeManifest(destDir, manifest);
           } catch (manifestErr) {

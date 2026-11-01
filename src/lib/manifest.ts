@@ -3,7 +3,8 @@
  * Each installed skill has a .skillfish.json file that tracks its origin.
  */
 
-import { existsSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, renameSync, unlinkSync, readdirSync } from 'fs';
+import { createHash } from 'crypto';
 import { join, basename } from 'path';
 import { isValidName } from './constants.js';
 import { isValidPath } from '../utils.js';
@@ -24,6 +25,9 @@ const BRANCH_PATTERN = /^[\w./-]+$/;
 
 /** Git ref pattern for tags, branches, or commit SHAs (more permissive than branch) */
 const REF_PATTERN = /^[\w./@-]+$/;
+
+/** SHA-256 content hash format: 64 hexadecimal characters */
+const CONTENT_HASH_PATTERN = /^[a-f0-9]{64}$/;
 
 /** Maximum length for ref strings */
 const MAX_REF_LENGTH = 255;
@@ -56,9 +60,54 @@ export interface SkillManifest {
   ref?: string;
   /** How the skill was installed - defaults to 'manual' for backwards compatibility */
   source?: SkillSource;
+  /** SHA-256 of the installed files (excluding .skillfish.json), used to detect local edits */
+  contentHash?: string;
 }
 
 // === Functions ===
+
+/**
+ * Compute a deterministic SHA-256 over all regular files in a skill directory,
+ * excluding the .skillfish.json manifest and its temp/backup files. Symlinks are skipped.
+ * Covers relative paths and file contents so edits, additions and deletions all change the hash.
+ */
+export function hashSkillDir(skillDir: string): string {
+  const hash = createHash('sha256');
+
+  function walk(dir: string, prefix: string): void {
+    const entries = readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
+      a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
+    );
+    for (const entry of entries) {
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        walk(join(dir, entry.name), rel);
+      } else if (entry.isFile()) {
+        if (!prefix && entry.name.startsWith(`.${MANIFEST_FILENAME}.tmp`)) continue;
+        if (!prefix && entry.name === MANIFEST_FILENAME) continue;
+        const content = readFileSync(join(dir, entry.name));
+        hash.update(`${rel}\0${content.length}\0`);
+        hash.update(content);
+      }
+    }
+  }
+
+  walk(skillDir, '');
+  return hash.digest('hex');
+}
+
+/**
+ * Whether the installed skill differs from what skillfish installed.
+ * Skills without a recorded contentHash (installed by older versions) are treated as unmodified.
+ */
+export function isSkillModified(skillDir: string, manifest: SkillManifest | null): boolean {
+  if (!manifest?.contentHash) return false;
+  try {
+    return hashSkillDir(skillDir) !== manifest.contentHash;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Read manifest from a skill directory.
@@ -229,6 +278,9 @@ export function healManifest(skillDir: string): SkillManifest | null {
     if (source) {
       healed.source = source;
     }
+    if (typeof data.contentHash === 'string' && CONTENT_HASH_PATTERN.test(data.contentHash)) {
+      healed.contentHash = data.contentHash;
+    }
 
     // Write the healed manifest back
     writeManifest(skillDir, healed);
@@ -273,6 +325,12 @@ function isValidManifest(data: unknown): data is SkillManifest {
     return false;
   }
   if (obj.source !== undefined && obj.source !== 'manifest' && obj.source !== 'manual') {
+    return false;
+  }
+  if (
+    obj.contentHash !== undefined &&
+    (typeof obj.contentHash !== 'string' || !CONTENT_HASH_PATTERN.test(obj.contentHash))
+  ) {
     return false;
   }
   // name is optional in v1, but if present must be valid
