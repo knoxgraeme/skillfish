@@ -56,6 +56,8 @@ export interface SkillManifest {
   ref?: string;
   /** How the skill was installed - defaults to 'manual' for backwards compatibility */
   source?: SkillSource;
+  /** Git tree hash of the installed files, used to detect local edits (absent in older manifests) */
+  contentSha?: string;
 }
 
 // === Functions ===
@@ -229,6 +231,9 @@ export function healManifest(skillDir: string): SkillManifest | null {
     if (source) {
       healed.source = source;
     }
+    if (typeof data.contentSha === 'string' && SHA_PATTERN.test(data.contentSha)) {
+      healed.contentSha = data.contentSha;
+    }
 
     // Write the healed manifest back
     writeManifest(skillDir, healed);
@@ -273,6 +278,12 @@ function isValidManifest(data: unknown): data is SkillManifest {
     return false;
   }
   if (obj.source !== undefined && obj.source !== 'manifest' && obj.source !== 'manual') {
+    return false;
+  }
+  if (
+    obj.contentSha !== undefined &&
+    (typeof obj.contentSha !== 'string' || !SHA_PATTERN.test(obj.contentSha))
+  ) {
     return false;
   }
   // name is optional in v1, but if present must be valid

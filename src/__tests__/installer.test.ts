@@ -16,6 +16,8 @@ import {
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { safeCopyDir, installSkill } from '../lib/installer.js';
+import { computeTreeSha } from '../lib/integrity.js';
+import { readManifest } from '../lib/manifest.js';
 import { invokeCli } from './invoke-cli.js';
 import type { Agent } from '../lib/agents.js';
 
@@ -288,6 +290,28 @@ describe('installSkill', () => {
 
     // Verify file was overwritten
     expect(readFileSync(join(existingDir, 'SKILL.md'), 'utf-8')).toBe('# New Skill');
+  });
+
+  it('records the installed content hash in the manifest', async () => {
+    mockDownloadTemplate.mockImplementation(async (_source: string, options: { dir: string }) => {
+      mkdirSync(join(options.dir, 'references'), { recursive: true });
+      writeFileSync(join(options.dir, 'SKILL.md'), '# Test Skill');
+      writeFileSync(join(options.dir, 'references', 'guide.md'), 'guide');
+      return { dir: options.dir, source: _source, url: 'https://github.com/owner/repo' };
+    });
+
+    const agents = [createMockAgent('Agent1', '.agent1/skills')];
+    const result = await installSkill('owner', 'repo', 'skills/test', 'test-skill', agents, {
+      force: false,
+      baseDir: tempDir,
+      branch: 'main',
+      sha: 'a'.repeat(40),
+    });
+
+    expect(result.failed).toBe(false);
+    const destDir = join(tempDir, '.agent1/skills', 'test-skill');
+    const manifest = readManifest(destDir);
+    expect(manifest?.contentSha).toBe(computeTreeSha(destDir));
   });
 
   it('fails when SKILL.md not found in download', async () => {

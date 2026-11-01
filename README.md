@@ -251,7 +251,10 @@ Update installed skills to latest version.
 skillfish update                     # Check for updates interactively
 skillfish update --yes               # Update all without prompting
 skillfish update --json              # Check for updates (JSON output)
+skillfish update --yes --force       # Update all, overwriting local edits
 ```
+
+Skills you've edited locally are never overwritten: `update` skips them and tells you which ones changed. Pass `--force` to replace them with the latest version.
 
 ### bundle
 
@@ -277,7 +280,7 @@ skillfish install --dry-run          # Preview changes without installing
 skillfish install --yes              # Skip confirmation prompts
 ```
 
-When a skill is removed from the manifest, `skillfish install` removes it from your system. Manually installed skills are never removed automatically.
+When a skill is removed from the manifest, `skillfish install` removes it from your system. Manually installed skills are never removed automatically, and skills you've edited locally are never overwritten or removed unless you pass `--force`.
 
 ### submit
 
@@ -354,7 +357,7 @@ Pass `--json` to get structured output on stdout. All commands return a common s
 }
 ```
 
-Each command adds its own fields: `installed` and `skipped` (add), `created` and `skipped` (init), `removed` (remove), `outdated` and `updated` (update), `installed` and `agents_detected` (list).
+Each command adds its own fields: `installed` and `skipped` (add), `created` and `skipped` (init), `removed` (remove), `outdated`, `updated` and `skipped` (update), `installed` and `agents_detected` (list).
 
 ### Exit codes
 

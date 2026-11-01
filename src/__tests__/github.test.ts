@@ -8,6 +8,7 @@ import {
   findAllSkillMdFiles,
   fetchRecursiveTree,
   fetchDefaultBranch,
+  fetchCommitTreeSha,
   getSkillSha,
   RateLimitError,
   RepoNotFoundError,
@@ -113,6 +114,40 @@ describe('fetchWithRetry', () => {
       'Connection refused',
     );
     expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('fetchCommitTreeSha', () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it('returns the root tree SHA of a commit', async () => {
+    const commitResponse = { sha: 'a'.repeat(40), tree: { sha: 'b'.repeat(40) } };
+    mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(commitResponse), { status: 200 }));
+
+    await expect(fetchCommitTreeSha('owner', 'repo', 'a'.repeat(40))).resolves.toBe('b'.repeat(40));
+    expect(mockFetch.mock.calls[0][0]).toBe(
+      `https://api.github.com/repos/owner/repo/git/commits/${'a'.repeat(40)}`,
+    );
+  });
+
+  it('returns null when the SHA is not a commit', async () => {
+    mockFetch.mockResolvedValueOnce(new Response('not found', { status: 404 }));
+
+    await expect(fetchCommitTreeSha('owner', 'repo', 'c'.repeat(40))).resolves.toBeNull();
+  });
+
+  it('throws RateLimitError when rate limited', async () => {
+    const headers = new Headers({
+      'X-RateLimit-Remaining': '0',
+      'X-RateLimit-Reset': String(Math.floor(Date.now() / 1000) + 3600),
+    });
+    mockFetch.mockResolvedValueOnce(new Response('rate limited', { status: 403, headers }));
+
+    await expect(fetchCommitTreeSha('owner', 'repo', 'a'.repeat(40))).rejects.toThrow(
+      RateLimitError,
+    );
   });
 });
 

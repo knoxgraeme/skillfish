@@ -12,9 +12,12 @@ import { trackCommand } from '../telemetry.js';
 import { getDetectedAgentsForLocation, getAgentSkillDir, type Agent } from '../lib/agents.js';
 import { listInstalledSkillsInDir, installSkill } from '../lib/installer.js';
 import { readManifest, type SkillManifest } from '../lib/manifest.js';
+import { computeTreeSha, getLocalEditStatus, type LocalEditStatus } from '../lib/integrity.js';
 import {
+  fetchCommitTreeSha,
   fetchRecursiveTree,
   getSkillSha,
+  SKILL_FILENAME,
   RateLimitError,
   RepoNotFoundError,
   NetworkError,
@@ -28,7 +31,13 @@ import { isInputTTY, isTTY, batchMap, type UpdateJsonOutput } from '../utils.js'
 
 interface UpdateCommandOptions {
   yes?: boolean;
+  force?: boolean;
 }
+
+const HELD_REASONS: Record<Exclude<LocalEditStatus, 'unchanged'>, string> = {
+  modified: 'Modified locally (use --force to overwrite)',
+  unknown: 'May have local edits, installed by an older skillfish (use --force to update)',
+};
 
 /**
  * Tracked skill with manifest information.
@@ -46,6 +55,7 @@ interface TrackedSkill {
 export const updateCommand = new Command('update')
   .description('Check for and apply updates to installed skills')
   .option('-y, --yes', 'Update all outdated skills without prompting')
+  .option('--force', 'Overwrite skills that were edited locally')
   .helpOption('-h, --help', 'Display help for command')
   .addHelpText(
     'after',
@@ -53,12 +63,14 @@ export const updateCommand = new Command('update')
 Examples:
   $ skillfish update                  Check for updates interactively
   $ skillfish update --yes            Update all outdated skills
+  $ skillfish update --yes --force    Update all, discarding local edits
   $ skillfish update --json           Check for updates (JSON output)
   $ skillfish update --yes --json     Update all outdated skills (JSON output)`,
   )
   .action(async (options: UpdateCommandOptions, command: Command) => {
     const jsonMode = command.parent?.opts().json ?? false;
     const autoUpdate = options.yes ?? false;
+    const force = options.force ?? false;
     const version = command.parent?.opts().version ?? '0.0.0';
 
     // JSON output state
@@ -68,6 +80,7 @@ Examples:
       errors: [],
       outdated: [],
       updated: [],
+      skipped: [],
     };
 
     function addError(message: string): void {
@@ -224,6 +237,26 @@ Examples:
       process.exit(EXIT_CODES.SUCCESS);
     }
 
+    // Reinstalling replaces the whole directory, so never do it over local edits unless forced
+    const editStatus = new Map<(typeof outdated)[0], LocalEditStatus>(
+      outdated.map((s) => [s, force ? 'unchanged' : getLocalEditStatus(s.path, s.manifest)]),
+    );
+    const commitTrees = new Map<string, Promise<string | null>>();
+    for (const skill of outdated) {
+      if (editStatus.get(skill) === 'unknown' && (await matchesCommitTree(skill, commitTrees))) {
+        editStatus.set(skill, 'unchanged');
+      }
+    }
+    const held = outdated.filter((s) => editStatus.get(s) !== 'unchanged');
+    const toUpdate = outdated.filter((s) => editStatus.get(s) === 'unchanged');
+    const heldReason = (s: (typeof outdated)[0]): string =>
+      HELD_REASONS[editStatus.get(s) === 'unknown' ? 'unknown' : 'modified'];
+    jsonOutput.skipped = held.map((s) => ({
+      skill: s.skill,
+      agent: s.agent.name,
+      reason: heldReason(s),
+    }));
+
     // Display outdated skills (TTY mode)
     if (!jsonMode) {
       console.log();
@@ -235,8 +268,16 @@ Examples:
           `  ${pc.yellow('•')} ${pc.bold(skill.skill)} (${skill.agent.name}, ${locationLabel})`,
         );
         console.log(`    ${pc.dim(shortLocal)} → ${pc.cyan(shortRemote)}`);
+        if (held.includes(skill)) {
+          console.log(`    ${pc.yellow(`not updated: ${heldReason(skill)}`)}`);
+        }
       }
       console.log();
+      if (held.length > 0) {
+        p.log.warn(
+          `${held.length} skill${held.length === 1 ? ' was' : 's were'} not updated to protect local edits. Run with ${pc.cyan('--force')} to update anyway.`,
+        );
+      }
     }
 
     // If --json without --yes: check mode only - don't apply updates
@@ -244,10 +285,18 @@ Examples:
       outputJsonAndExit(EXIT_CODES.SUCCESS);
     }
 
+    if (toUpdate.length === 0) {
+      if (jsonMode) {
+        outputJsonAndExit(EXIT_CODES.SUCCESS);
+      }
+      p.outro(pc.yellow('No skills updated'));
+      process.exit(EXIT_CODES.SUCCESS);
+    }
+
     // Prompt for confirmation (unless --yes)
     if (!autoUpdate && isInputTTY() && !jsonMode) {
       const proceed = await p.confirm({
-        message: `Update all ${outdated.length} skill${outdated.length === 1 ? '' : 's'}?`,
+        message: `Update ${toUpdate.length} skill${toUpdate.length === 1 ? '' : 's'}?`,
         initialValue: true,
       });
 
@@ -261,14 +310,14 @@ Examples:
     const UPDATE_CONCURRENCY = 5;
 
     interface UpdateResult {
-      skill: (typeof outdated)[0];
+      skill: (typeof toUpdate)[0];
       success: boolean;
       errorMsg?: string;
     }
 
     // Track progress for spinner updates
     let completedCount = 0;
-    const totalCount = outdated.length;
+    const totalCount = toUpdate.length;
 
     // Start spinner for update progress
     let updateSpinner: ReturnType<typeof p.spinner> | null = null;
@@ -278,7 +327,7 @@ Examples:
     }
 
     const updateResults = await batchMap(
-      outdated,
+      toUpdate,
       async (skill): Promise<UpdateResult> => {
         try {
           const result = await installSkill(
@@ -362,7 +411,7 @@ Examples:
     if (failedCount > 0) {
       p.outro(
         pc.yellow(
-          `Updated ${updatedCount} of ${outdated.length} skill${outdated.length === 1 ? '' : 's'}`,
+          `Updated ${updatedCount} of ${toUpdate.length} skill${toUpdate.length === 1 ? '' : 's'}`,
         ),
       );
       process.exit(EXIT_CODES.GENERAL_ERROR);
@@ -375,6 +424,42 @@ Examples:
   });
 
 // === Helper Functions ===
+
+/**
+ * Older manifests can hold a commit SHA instead of a tree SHA (root-level skills
+ * after `update`, or any skill whose directory lookup missed). Resolve the skill's
+ * tree at that commit and compare it with the local files.
+ * Any lookup failure keeps the skill protected.
+ */
+async function matchesCommitTree(
+  skill: TrackedSkill,
+  cache: Map<string, Promise<string | null>>,
+): Promise<boolean> {
+  try {
+    const { owner, repo, sha, path } = skill.manifest;
+    const key = `${owner}/${repo}@${sha}#${path}`;
+    if (!cache.has(key)) {
+      // Cache the promise, swallowing errors, so a skill installed for several agents costs one request
+      cache.set(
+        key,
+        fetchSkillTreeAtCommit(skill.manifest).catch(() => null),
+      );
+    }
+    const treeSha = await cache.get(key);
+    return typeof treeSha === 'string' && treeSha === computeTreeSha(skill.path);
+  } catch {
+    return false;
+  }
+}
+
+async function fetchSkillTreeAtCommit(manifest: SkillManifest): Promise<string | null> {
+  const { owner, repo, path, sha } = manifest;
+  if (path === '.') {
+    return fetchCommitTreeSha(owner, repo, sha);
+  }
+  const { tree } = await fetchRecursiveTree(owner, repo, sha);
+  return getSkillSha(tree, `${path}/${SKILL_FILENAME}`) ?? null;
+}
 
 /**
  * Collect all installed skills that have manifests (tracked skills).

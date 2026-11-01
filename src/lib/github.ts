@@ -204,6 +204,49 @@ export async function fetchSkillMdContent(
 }
 
 /**
+ * Fetch the root tree SHA of a commit.
+ * Used to check older manifests whose `sha` is a commit SHA rather than a tree SHA.
+ *
+ * @returns The commit's tree SHA, or null if GitHub can't find it (not a commit, no longer
+ *   reachable, or not visible with the current credentials)
+ * @throws {RateLimitError} When GitHub API rate limit is exceeded
+ * @throws {NetworkError} On network errors
+ * @throws {GitHubApiError} When the API response format is unexpected
+ */
+export async function fetchCommitTreeSha(
+  owner: string,
+  repo: string,
+  sha: string,
+): Promise<string | null> {
+  const headers = githubHeaders();
+  const url = `https://api.github.com/repos/${owner}/${repo}/git/commits/${sha}`;
+
+  try {
+    const res = await fetchWithRetry(url, { headers });
+
+    checkRateLimit(res);
+
+    if (res.status === 404 || res.status === 422) {
+      return null;
+    }
+
+    if (!res.ok) {
+      throw new GitHubApiError(`GitHub API returned status ${res.status}`);
+    }
+
+    const data = (await res.json()) as { tree?: { sha?: string } };
+    const treeSha = data.tree?.sha;
+    if (typeof treeSha !== 'string' || !/^[a-f0-9]{40}$/.test(treeSha)) {
+      throw new GitHubApiError('Invalid or missing tree sha in commit response');
+    }
+
+    return treeSha;
+  } catch (err: unknown) {
+    wrapApiError(err);
+  }
+}
+
+/**
  * Fetch the tree SHA for a repository branch.
  * Used for update checks - compares stored SHA with current SHA.
  *
