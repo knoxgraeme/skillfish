@@ -65,6 +65,12 @@ describe('agents.ts', () => {
       expect(cursor).toBeDefined();
       expect(cursor?.dir).toBe('.cursor/skills');
     });
+
+    it('installs Codex skills to .agents/skills, the directory Codex actually scans', () => {
+      const codex = AGENT_CONFIGS.find((c) => c.name === 'Codex');
+      expect(codex).toBeDefined();
+      expect(codex?.dir).toBe('.agents/skills');
+    });
   });
 
   describe('detectAgent', () => {

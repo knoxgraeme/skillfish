@@ -46,7 +46,7 @@ export const AGENT_CONFIGS: readonly AgentConfig[] = [
   },
   {
     name: 'Codex',
-    dir: '.codex/skills',
+    dir: '.agents/skills',
     homePaths: ['.codex/config.json', '.codex/settings.json', '.codex'],
     cwdPaths: ['.codex'],
   },
