@@ -112,6 +112,7 @@ Two distinct manifest files work together for skill tracking:
 **Per-skill manifest** (`.skillfish.json` inside each skill directory):
 - Tracks skill origin: `owner`, `repo`, `path`, `branch`, `sha`, `ref`
 - `name` field (v2): installed directory name, used for matching
+- `contentHash` field: SHA-256 of installed files (excluding `.skillfish.json`), written at install. `update`/`install` skip skills whose files no longer match (local edits) unless `--force`; skills without a hash are treated as unmodified
 - `source` field: `'manifest'` or `'manual'` (undefined defaults to `'manual'`)
 - Written by `installer.ts` during installation
 - Key function: `getManifestKey(manifest)` returns `"owner/repo/path"` for matching

@@ -241,6 +241,8 @@ export interface OutdatedSkill {
 export interface UpdateJsonOutput extends BaseJsonOutput {
   outdated: OutdatedSkill[];
   updated: InstalledSkill[];
+  /** Skills not updated because of local modifications (use --force to overwrite) */
+  skipped: { skill: string; agent: string; reason: string }[];
 }
 
 /**
@@ -313,6 +315,8 @@ export interface InstallJsonOutput extends BaseJsonOutput {
   installed: InstalledSkill[];
   skipped: { skill: string; reason: string }[];
   removed: { skill: string; agent: string }[];
+  /** Locally modified skills left untouched (use --force to overwrite) */
+  modified_skipped: { skill: string; agent: string }[];
   conflicts: { skill: string; reason: string }[];
 }
 
